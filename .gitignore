@@ -31,3 +31,38 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### SmartFleet Specific ###
+# Environmental
+.env
+.env.local
+.env.*.local
+application-local.properties
+
+# Firebase Configuration
+firebase-config.json
+*firebase-config*.json
+!firebase-config-example.json
+
+# Valhalla Data (Docker Volume)
+valhalla_data/
+postgres_data/
+redis_data/
+
+# Database
+*.db
+*.sqlite
+
+# Logs
+logs/
+*.log
+
+# OS Specific
+.DS_Store
+Thumbs.db
+
+# Misc
+*.orig
+*.patch
+*.diff
+

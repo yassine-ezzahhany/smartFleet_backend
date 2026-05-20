@@ -1,0 +1,44 @@
+version: '3.8'
+
+# ====================================================
+# SmartFleet — Local Dev Services
+# La base de données est hébergée sur Supabase (cloud).
+# Ce fichier ne lance que les services locaux.
+# ====================================================
+
+services:
+
+  # Valhalla — moteur de calcul d'itinéraires
+  # À démarrer quand vous êtes prêt à tester le routage.
+  valhalla:
+    image: ghcr.io/gis-ops/docker-valhalla/valhalla:latest
+    container_name: smartfleet-valhalla
+    ports:
+      - "8002:8002"
+    volumes:
+      - valhalla_data:/data/valhalla
+    environment:
+      - serve_tiles=True
+      - build_admins=False
+      - build_time_zones=False
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  valhalla_data:
+
+# ──────────────────────────────────────────────────
+# Commandes utiles :
+#
+# Démarrer Valhalla :
+#   docker-compose up -d valhalla
+#
+# Vérifier que Valhalla est prêt :
+#   curl http://localhost:8002/health
+#
+# Arrêter :
+#   docker-compose down
+# ──────────────────────────────────────────────────
