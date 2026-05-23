@@ -4,10 +4,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import ma.smartfleet.backend.dto.RegisterRequestDTO;
 import ma.smartfleet.backend.dto.UserDTO;
 import ma.smartfleet.backend.model.User;
 import ma.smartfleet.backend.model.enums.UserRole;
+import ma.smartfleet.backend.repository.ManagerRepository;
 import ma.smartfleet.backend.repository.UserRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Optional;
 
@@ -21,106 +24,75 @@ public class UserServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private ManagerRepository managerRepository;
+
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
     private UserService userService;
 
     @BeforeEach
     public void setUp() {
         MockitoAnnotations.openMocks(this);
-        userService = new UserService(userRepository);
+        userService = new UserService(userRepository, managerRepository, passwordEncoder);
     }
 
     @Test
-    public void testGetOrCreateUserFromClerk_UserExists() {
+    public void testRegister_Success() {
         // Given
-        String clerkId = "user_123456";
-        User existingUser = new User();
-        existingUser.setId(1L);
-        existingUser.setClerkId(clerkId);
-        existingUser.setEmail("test@example.com");
+        RegisterRequestDTO dto = new RegisterRequestDTO();
+        dto.setEmail("new@example.com");
+        dto.setPassword("password123");
+        dto.setName("John Doe");
+        dto.setRole(UserRole.MANAGER);
 
-        when(userRepository.findByClerkId(clerkId))
-            .thenReturn(Optional.of(existingUser));
+        ma.smartfleet.backend.model.Manager savedUser = new ma.smartfleet.backend.model.Manager();
+        savedUser.setId(10L);
+        savedUser.setEmail(dto.getEmail());
+        savedUser.setName(dto.getName());
+        savedUser.setRole(UserRole.MANAGER);
+
+        when(userRepository.existsByEmail(dto.getEmail())).thenReturn(false);
+        when(passwordEncoder.encode(dto.getPassword())).thenReturn("hashed_password");
+        when(userRepository.save(any(User.class))).thenReturn(savedUser);
 
         // When
-        User result = userService.getOrCreateUserFromClerk(clerkId, "test@example.com", "John", "Doe");
+        User result = userService.register(dto);
 
         // Then
         assertNotNull(result);
-        assertEquals(clerkId, result.getClerkId());
-        assertEquals(1L, result.getId());
+        assertEquals(dto.getEmail(), result.getEmail());
+        assertEquals(10L, result.getId());
+        assertEquals(UserRole.MANAGER, result.getRole());
+        verify(userRepository).save(any(User.class));
     }
 
     @Test
-    public void testGetOrCreateUserFromClerk_UserDoesNotExist() {
+    public void testRegister_AdminForbidden() {
         // Given
-        String clerkId = "user_new123";
-        String email = "newuser@example.com";
-        String firstName = "Jane";
-        String lastName = "Smith";
+        RegisterRequestDTO dto = new RegisterRequestDTO();
+        dto.setEmail("admin@example.com");
+        dto.setPassword("password123");
+        dto.setName("Admin User");
+        dto.setRole(UserRole.ADMIN);
 
-        User newUser = new User();
-        newUser.setId(2L);
-        newUser.setClerkId(clerkId);
-        newUser.setEmail(email);
-        newUser.setFirstName(firstName);
-        newUser.setLastName(lastName);
-        newUser.setRole(UserRole.DRIVER);
-        newUser.setActive(true);
+        // When & Then
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+            userService.register(dto);
+        });
 
-        when(userRepository.findByClerkId(clerkId))
-            .thenReturn(Optional.empty());
-        when(userRepository.save(any(User.class)))
-            .thenReturn(newUser);
-
-        // When
-        User result = userService.getOrCreateUserFromClerk(clerkId, email, firstName, lastName);
-
-        // Then
-        assertNotNull(result);
-        assertEquals(clerkId, result.getClerkId());
-        assertEquals(email, result.getEmail());
-        assertEquals(UserRole.DRIVER, result.getRole());
-        assertTrue(result.getActive());
+        assertEquals("La création d'un compte administrateur via l'API est interdite. Les administrateurs doivent être créés directement en base de données.", exception.getMessage());
     }
 
-    @Test
-    public void testSyncUserFromClerk() {
-        // Given
-        String clerkId = "user_sync123";
-        String email = "sync@example.com";
-        
-        User existingUser = new User();
-        existingUser.setId(3L);
-        existingUser.setClerkId(clerkId);
-        existingUser.setEmail("oldemail@example.com");
-        existingUser.setFirstName("Old");
-        existingUser.setLastName("Name");
-
-        when(userRepository.findByClerkId(clerkId))
-            .thenReturn(Optional.of(existingUser));
-        when(userRepository.save(any(User.class)))
-            .thenReturn(existingUser);
-
-        // When
-        User result = userService.syncUserFromClerk(clerkId, email, "New", "Name", true);
-
-        // Then
-        assertNotNull(result);
-        assertEquals(email, result.getEmail());
-        assertEquals("New", result.getFirstName());
-        assertEquals("Name", result.getLastName());
-        assertTrue(result.getActive());
-    }
 
     @Test
     public void testConvertToDTO() {
         // Given
         User user = new User();
         user.setId(1L);
-        user.setClerkId("user_123");
         user.setEmail("user@example.com");
-        user.setFirstName("John");
-        user.setLastName("Doe");
+        user.setName("John Doe");
         user.setPhone("+1234567890");
         user.setRole(UserRole.DRIVER);
         user.setActive(true);
@@ -131,10 +103,8 @@ public class UserServiceTest {
         // Then
         assertNotNull(dto);
         assertEquals(1L, dto.getId());
-        assertEquals("user_123", dto.getClerkId());
         assertEquals("user@example.com", dto.getEmail());
-        assertEquals("John", dto.getFirstName());
-        assertEquals("Doe", dto.getLastName());
+        assertEquals("John Doe", dto.getName());
         assertEquals("+1234567890", dto.getPhone());
         assertEquals(UserRole.DRIVER, dto.getRole());
         assertTrue(dto.getActive());

@@ -9,7 +9,6 @@ import ma.smartfleet.backend.model.enums.UserRole;
 
 @Entity
 @Table(name = "users", indexes = {
-    @Index(name = "idx_user_clerk_id", columnList = "clerk_id", unique = true),
     @Index(name = "idx_user_email", columnList = "email", unique = true)
 })
 @Inheritance(strategy = InheritanceType.JOINED)
@@ -22,17 +21,15 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "clerk_id", unique = true, nullable = false)
-    private String clerkId;
+    @Column(nullable = true)
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private String password;
 
     @Column(nullable = false, unique = true)
     private String email;
 
     @Column(nullable = false)
-    private String firstName;
-
-    @Column(nullable = false)
-    private String lastName;
+    private String name;
 
     @Column
     private String phone;

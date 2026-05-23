@@ -29,6 +29,6 @@ public class OpenApiConfig {
                     .type(SecurityScheme.Type.HTTP)
                     .scheme("bearer")
                     .bearerFormat("JWT")
-                    .description("Token JWT Clerk — format : Bearer {token}")));
+                    .description("Token JWT — format : Bearer {token}")));
     }
 }
