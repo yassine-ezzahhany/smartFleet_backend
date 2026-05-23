@@ -8,6 +8,7 @@ import ma.smartfleet.backend.model.*;
 import ma.smartfleet.backend.model.enums.DeliveryProgramStatus;
 import ma.smartfleet.backend.model.enums.SubProgramStatus;
 import ma.smartfleet.backend.repository.*;
+import ma.smartfleet.backend.infrastructure.adapter.ORToolsAdapter;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +25,7 @@ public class DeliveryOptimizationService {
     private final DriverRepository driverRepository;
     private final VehicleRepository vehicleRepository;
     private final SubProgramRepository subProgramRepository;
+    private final ORToolsAdapter orToolsAdapter;
 
     @Transactional
     public DeliveryProgram optimizeProgram(Long programId) {
@@ -46,40 +48,52 @@ public class DeliveryOptimizationService {
             throw new OptimizationException("No active vehicles for manager " + program.getManager().getId());
         }
 
-        // Simple round-robin assignment as a placeholder for full OR-Tools VRP.
-        // When OR-Tools is integrated, replace this block with the solver call.
+        // 1. Appel du solveur d'optimisation OR-Tools VRP
+        ORToolsAdapter.OptimizationResult optimizationResult = orToolsAdapter.optimizeDeliveries(orders, vehicles, drivers);
+
         Set<SubProgram> subPrograms = new HashSet<>();
-        int driverIdx = 0, vehicleIdx = 0, routeCounter = 1;
+        int routeCounter = 1;
 
-        SubProgram current = newSubProgram(program, drivers.get(driverIdx), vehicles.get(vehicleIdx), routeCounter++);
-        double currentWeight = 0, currentVolume = 0;
+        // 2. Mappage des tournées optimisées vers les SubPrograms
+        for (ORToolsAdapter.RouteSolution route : optimizationResult.getRoutes()) {
+            Vehicle vehicle = vehicles.stream()
+                    .filter(v -> v.getId().equals(route.getVehicleId()))
+                    .findFirst()
+                    .orElse(vehicles.get(0));
 
-        for (Order order : orders) {
-            double maxKg   = current.getVehicle().getMaxPayloadKg();
-            double maxM2   = current.getVehicle().getMaxVolumeM2();
+            Driver driver = drivers.stream()
+                    .filter(d -> d.getId().equals(route.getDriverId()))
+                    .findFirst()
+                    .orElse(drivers.get(0));
 
-            // If adding this order exceeds capacity, open a new sub-program
-            if (currentWeight + order.getWeightKg() > maxKg || currentVolume + order.getVolumeM2() > maxM2) {
-                subPrograms.add(current);
+            SubProgram sp = new SubProgram();
+            sp.setSubProgramNumber(program.getProgramNumber() + "-SUB-" + routeCounter++);
+            sp.setDeliveryProgram(program);
+            sp.setDriver(driver);
+            sp.setVehicle(vehicle);
+            sp.setStatus(SubProgramStatus.ASSIGNED);
+            sp.setEstimatedDistanceKm(route.getRouteDistance() / 1000.0);
+            sp.setEstimatedDurationMinutes((int) Math.round(route.getRouteTime() / 60.0));
+            sp.setOrders(new HashSet<>());
+            sp.setTotalOrdersCount(route.getOrderIds().size());
 
-                driverIdx  = (driverIdx  + 1) % drivers.size();
-                vehicleIdx = (vehicleIdx + 1) % vehicles.size();
-                current     = newSubProgram(program, drivers.get(driverIdx), vehicles.get(vehicleIdx), routeCounter++);
-                currentWeight = 0;
-                currentVolume = 0;
+            SubProgram savedSp = subProgramRepository.save(sp);
+
+            // Associer les commandes affectées à cette tournée
+            for (Long orderId : route.getOrderIds()) {
+                Order order = orders.stream()
+                        .filter(o -> o.getId().equals(orderId))
+                        .findFirst()
+                        .orElse(null);
+                if (order != null) {
+                    order.setSubProgram(savedSp);
+                    order.setStatus(ma.smartfleet.backend.model.enums.OrderStatus.ASSIGNED);
+                    orderRepository.save(order);
+                    savedSp.getOrders().add(order);
+                }
             }
 
-            order.setSubProgram(current);
-            current.getOrders().add(order);
-            currentWeight += order.getWeightKg();
-            currentVolume += order.getVolumeM2();
-        }
-        subPrograms.add(current);
-
-        // Update counts
-        for (SubProgram sp : subPrograms) {
-            sp.setTotalOrdersCount(sp.getOrders().size());
-            subProgramRepository.save(sp);
+            subPrograms.add(savedSp);
         }
 
         program.setSubPrograms(subPrograms);

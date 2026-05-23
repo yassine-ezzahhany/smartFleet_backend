@@ -14,11 +14,11 @@ Il gère la planification des livraisons, l'optimisation des tournées, le track
 | Langage | Java 17 |
 | Base de données | **Supabase** (PostgreSQL 15 + PostGIS — cloud géré) |
 | ORM | Spring Data JPA + Hibernate Spatial |
-| Sécurité | Spring Security + OAuth2 Resource Server (Clerk JWT) |
+| Sécurité | Spring Security + Custom stateless JWT (BCrypt) |
 | HTTP Client | Spring WebFlux `WebClient` |
 | WebSocket | Spring WebSocket + STOMP |
 | Notifications | Firebase Admin SDK (FCM — stub prêt à câbler) |
-| Optimisation VRP | Google OR-Tools (round-robin en attendant) |
+| Optimisation VRP | Google OR-Tools (VRP avec double contrainte de capacité) |
 | Routage | Valhalla (à setup localement via Docker) |
 | Mapping | Lombok |
 
@@ -118,7 +118,7 @@ ma.smartfleet.backend
 | `RouteService` | Calcule l'itinéraire optimal d'un `SubProgram` via Valhalla |
 | `OrderService` | Approbation/rejet de livraisons, complétion automatique des sous-programmes |
 | `LocationTrackingService` | Mise à jour GPS, PostGIS, Haversine distance |
-| `DeliveryOptimizationService` | Crée les `SubProgram` par assignation round-robin (OR-Tools VRP prévu) |
+| `DeliveryOptimizationService` | Planifie et optimise les tournées (`SubProgram`) via Google OR-Tools VRP |
 | `NotificationService` | Push FCM vers drivers et clients (log stub, prêt à câbler) |
 
 ---
@@ -194,8 +194,8 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001
 
 ## Valhalla (en attente de setup)
 
-Valhalla est le moteur de calcul d'itinéraires. Il n'est **pas encore configuré**.  
-En attendant, `DeliveryOptimizationService` utilise un **algorithme round-robin** pour assigner les commandes.
+Valhalla est le moteur de calcul d'itinéraires et de tracés cartographiques.
+L'optimisation globale des tournées est assurée par le solveur d'optimisation Google OR-Tools.
 
 Pour le démarrer localement :
 ```bash
@@ -208,11 +208,12 @@ Une fois lancé, `RouteService.calculateOptimalRoute()` et `ValhallaClient` fonc
 
 ## Prochaines étapes
 
+- [x] Remplacer le round-robin par Google OR-Tools VRP dans `DeliveryOptimizationService`
+- [x] Aligner et sécuriser les clés de configuration JWT pour la production
 - [ ] Configurer Valhalla (Docker local)
-- [ ] Remplacer round-robin par OR-Tools VRP dans `DeliveryOptimizationService`
 - [ ] Câbler Firebase FCM dans `NotificationService`
 - [ ] Ajouter `DeliveryProgramController`, `VehicleController`, `UserController`
-- [ ] Écrire les tests unitaires (`OrderService`, `LocationTrackingService`)
+- [ ] Écrire les tests unitaires additionnels (`OrderService`, `LocationTrackingService`)
 - [ ] Passer `ddl-auto` de `update` à `validate` après stabilisation du schéma
 
 ---
