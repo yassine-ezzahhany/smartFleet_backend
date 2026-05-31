@@ -1,5 +1,3 @@
-version: '3.8'
-
 # ====================================================
 # SmartFleet — Local Dev Services
 # La base de données est hébergée sur Supabase (cloud).
@@ -21,8 +19,9 @@ services:
       - serve_tiles=True
       - build_admins=False
       - build_time_zones=False
+      - tile_urls=https://download.geofabrik.de/africa/morocco-latest.osm.pbf
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8002/status"]
       interval: 30s
       timeout: 10s
       retries: 3

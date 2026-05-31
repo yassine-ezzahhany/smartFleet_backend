@@ -10,13 +10,16 @@ import ma.smartfleet.backend.model.Driver;
 import ma.smartfleet.backend.model.Manager;
 import ma.smartfleet.backend.model.User;
 import ma.smartfleet.backend.model.enums.UserRole;
+import ma.smartfleet.backend.repository.DriverRepository;
 import ma.smartfleet.backend.repository.ManagerRepository;
 import ma.smartfleet.backend.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -26,6 +29,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final ManagerRepository managerRepository;
+    private final DriverRepository driverRepository;
     private final PasswordEncoder passwordEncoder;
 
     /**
@@ -55,23 +59,7 @@ public class UserService {
             driver.setLicenseNumber("TEMP-" + System.currentTimeMillis());
             driver.setLicenseExpiry(null);
             driver.setAvailable(true);
-
-            // Recherche du manager ou création d'un manager par défaut pour satisfaire la contrainte non-nulle
-            Manager manager = null;
-            if (manager == null) {
-                manager = managerRepository.findAll().stream().findFirst().orElseGet(() -> {
-                    log.info("Création d'un manager par défaut pour satisfaire l'association du Driver");
-                    Manager defaultManager = new Manager();
-                    defaultManager.setEmail("manager.default@smartfleet.ma");
-                    defaultManager.setName("Manager Par Défaut");
-                    defaultManager.setDepartment("Logistique");
-                    defaultManager.setPassword(passwordEncoder.encode("DefaultManagerPass123!"));
-                    defaultManager.setRole(UserRole.MANAGER);
-                    defaultManager.setActive(true);
-                    return managerRepository.save(defaultManager);
-                });
-            }
-            driver.setManager(manager);
+            driver.setManager(null); // Le chauffeur crée son compte de lui-même sans manager initial
             user = driver;
         } else if (dto.getRole() == UserRole.MANAGER) {
             Manager manager = new Manager();
@@ -148,5 +136,58 @@ public class UserService {
         dto.setRole(user.getRole());
         dto.setActive(user.getActive());
         return dto;
+    }
+
+    /**
+     * Récupère la liste de tous les chauffeurs sans manager (non affectés).
+     */
+    @Transactional(readOnly = true)
+    public List<UserDTO> getUnassignedDrivers() {
+        return driverRepository.findByManagerIsNull().stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Récupère la liste de tous les chauffeurs d'un Manager donné.
+     */
+    @Transactional(readOnly = true)
+    public List<UserDTO> getDriversByManager(Long managerId) {
+        return driverRepository.findByManagerId(managerId).stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Affecte un chauffeur à l'organisation du Manager connecté.
+     */
+    public UserDTO assignDriverToManager(Long driverId, Long managerId) {
+        Driver driver = driverRepository.findById(driverId)
+                .orElseThrow(() -> new OptimizationException("Chauffeur non trouvé avec l'id : " + driverId));
+        
+        Manager manager = managerRepository.findById(managerId)
+                .orElseThrow(() -> new OptimizationException("Manager non trouvé avec l'id : " + managerId));
+
+        driver.setManager(manager);
+        Driver saved = driverRepository.save(driver);
+        log.info("Chauffeur {} affecté au manager {}", driver.getEmail(), manager.getEmail());
+        return convertToDTO(saved);
+    }
+
+    /**
+     * Retire un chauffeur de l'organisation du Manager connecté.
+     */
+    public UserDTO removeDriverFromManager(Long driverId, Long managerId) {
+        Driver driver = driverRepository.findById(driverId)
+                .orElseThrow(() -> new OptimizationException("Chauffeur non trouvé avec l'id : " + driverId));
+
+        if (driver.getManager() == null || !driver.getManager().getId().equals(managerId)) {
+            throw new IllegalArgumentException("Ce chauffeur n'est pas affecté à votre organisation.");
+        }
+
+        driver.setManager(null);
+        Driver saved = driverRepository.save(driver);
+        log.info("Chauffeur {} retiré de l'organisation", driver.getEmail());
+        return convertToDTO(saved);
     }
 }

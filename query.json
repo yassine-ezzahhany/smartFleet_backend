@@ -1,0 +1,10 @@
+{
+  "locations": [
+    {"lat": 33.5992, "lon": -7.6133},
+    {"lat": 33.6085, "lon": -7.6327}
+  ],
+  "costing": "auto",
+  "directions_options": {
+    "units": "km"
+  }
+}

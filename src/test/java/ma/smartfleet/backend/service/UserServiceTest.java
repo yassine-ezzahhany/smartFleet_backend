@@ -8,6 +8,7 @@ import ma.smartfleet.backend.dto.RegisterRequestDTO;
 import ma.smartfleet.backend.dto.UserDTO;
 import ma.smartfleet.backend.model.User;
 import ma.smartfleet.backend.model.enums.UserRole;
+import ma.smartfleet.backend.repository.DriverRepository;
 import ma.smartfleet.backend.repository.ManagerRepository;
 import ma.smartfleet.backend.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -28,6 +29,9 @@ public class UserServiceTest {
     private ManagerRepository managerRepository;
 
     @Mock
+    private DriverRepository driverRepository;
+
+    @Mock
     private PasswordEncoder passwordEncoder;
 
     private UserService userService;
@@ -35,7 +39,7 @@ public class UserServiceTest {
     @BeforeEach
     public void setUp() {
         MockitoAnnotations.openMocks(this);
-        userService = new UserService(userRepository, managerRepository, passwordEncoder);
+        userService = new UserService(userRepository, managerRepository, driverRepository, passwordEncoder);
     }
 
     @Test

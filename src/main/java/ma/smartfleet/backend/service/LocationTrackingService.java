@@ -2,6 +2,7 @@ package ma.smartfleet.backend.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import ma.smartfleet.backend.dto.DriverLocationUpdateDTO;
 import ma.smartfleet.backend.exception.ResourceNotFoundException;
 import ma.smartfleet.backend.model.Driver;
 import ma.smartfleet.backend.repository.DriverRepository;
@@ -9,8 +10,11 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.PrecisionModel;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -18,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class LocationTrackingService {
 
     private final DriverRepository driverRepository;
+    private final SimpMessagingTemplate messagingTemplate;
     private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
 
     @Transactional
@@ -31,7 +36,26 @@ public class LocationTrackingService {
         driver.setLastLocationUpdate(timestamp);
         // PostGIS: (longitude, latitude)
         driver.setCurrentLocation(geometryFactory.createPoint(new Coordinate(longitude, latitude)));
-        driverRepository.save(driver);
+        Driver saved = driverRepository.save(driver);
+
+        // 📡 DIFFUSION TEMPS RÉEL VIA WEBSOCKET (STOMP)
+        DriverLocationUpdateDTO updateDTO = new DriverLocationUpdateDTO(driverId, latitude, longitude, timestamp);
+        
+        // 1. Canal Global pour le Manager (Suivi de toute sa flotte)
+        if (saved.getManager() != null) {
+            String managerTopic = "/topic/managers/" + saved.getManager().getId() + "/drivers";
+            messagingTemplate.convertAndSend(managerTopic, Map.of(
+                "driverId", driverId,
+                "name", saved.getName(),
+                "latitude", latitude,
+                "longitude", longitude,
+                "timestamp", timestamp
+            ));
+        }
+
+        // 2. Canal Spécifique pour le Client (Suivi individuel du chauffeur par le client)
+        String driverTopic = "/topic/drivers/" + driverId + "/location";
+        messagingTemplate.convertAndSend(driverTopic, updateDTO);
     }
 
     @Transactional(readOnly = true)

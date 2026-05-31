@@ -26,7 +26,7 @@ public class Driver extends User {
     private String licenseExpiry;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "manager_id", nullable = false)
+    @JoinColumn(name = "manager_id", nullable = true)
     private Manager manager;
 
     @ManyToMany

@@ -13,6 +13,7 @@ public interface DriverRepository extends JpaRepository<Driver, Long> {
     Optional<Driver> findByLicenseNumber(String licenseNumber);
     List<Driver> findByManagerId(Long managerId);
     List<Driver> findByManagerIdAndAvailableTrue(Long managerId);
+    List<Driver> findByManagerIsNull();
 
     @Query(value = "SELECT * FROM drivers d WHERE ST_DWithin(d.current_location, ST_SetSRID(ST_MakePoint(?1, ?2), 4326)::geography, ?3)", nativeQuery = true)
     List<Driver> findDriversNearby(Double longitude, Double latitude, Double radiusMeters);
