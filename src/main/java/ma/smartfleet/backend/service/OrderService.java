@@ -12,6 +12,12 @@ import ma.smartfleet.backend.repository.SubProgramRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List; 
+
+// import com.google.api.services.storage.Storage.BucketAccessControls.List;
+
+// import com.google.api.services.storage.Storage.BucketAccessControls.List;
+
 import java.time.LocalDateTime;
 import java.util.Set;
 
@@ -88,4 +94,7 @@ public class OrderService {
         return orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Order", id));
     }
+    public List<Order> findAll() {
+    return orderRepository.findAll();
+}
 }

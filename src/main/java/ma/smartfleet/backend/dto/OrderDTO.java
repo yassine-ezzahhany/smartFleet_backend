@@ -1,5 +1,7 @@
 package ma.smartfleet.backend.dto;
 
+import java.time.LocalDateTime;
+
 import lombok.*;
 
 @Data @AllArgsConstructor @NoArgsConstructor
@@ -17,4 +19,5 @@ public class OrderDTO {
     private String estimatedDeliveryTime;
     private String actualDeliveryTime;
     private Boolean clientApproved;
+    private String createdAt;
 }
