@@ -4,11 +4,15 @@ import lombok.RequiredArgsConstructor;
 import ma.smartfleet.backend.dto.SubProgramDTO;
 import ma.smartfleet.backend.exception.ResourceNotFoundException;
 import ma.smartfleet.backend.model.SubProgram;
+import ma.smartfleet.backend.model.User;
 import ma.smartfleet.backend.repository.SubProgramRepository;
 import ma.smartfleet.backend.service.RouteService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.stream.Collectors;
 
 @RestController
@@ -33,6 +37,40 @@ public class SubProgramController {
     public ResponseEntity<SubProgramDTO> calculateRoute(@PathVariable Long id) {
         SubProgram sp = routeService.calculateOptimalRoute(id);
         return ResponseEntity.ok(toDto(sp));
+    }
+
+    /**
+     * Récupère le sous-programme actif (ASSIGNED ou IN_PROGRESS) du chauffeur connecté.
+     */
+    @GetMapping("/my-active")
+    public ResponseEntity<SubProgramDTO> getMyActiveSubProgram() {
+        User user = getAuthenticatedUser();
+        List<SubProgram> activeSubPrograms = subProgramRepository.findByDriverIdAndStatus(user.getId(), ma.smartfleet.backend.model.enums.SubProgramStatus.ASSIGNED);
+        if (activeSubPrograms.isEmpty()) {
+            activeSubPrograms = subProgramRepository.findByDriverIdAndStatus(user.getId(), ma.smartfleet.backend.model.enums.SubProgramStatus.IN_PROGRESS);
+        }
+        if (activeSubPrograms.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(toDto(activeSubPrograms.get(0)));
+    }
+
+    /**
+     * Récupère la liste de tous les sous-programmes affectés au chauffeur connecté.
+     */
+    @GetMapping("/my-subprograms")
+    public ResponseEntity<List<SubProgramDTO>> getMySubPrograms() {
+        User user = getAuthenticatedUser();
+        List<SubProgram> list = subProgramRepository.findByDriverId(user.getId());
+        return ResponseEntity.ok(list.stream().map(this::toDto).collect(Collectors.toList()));
+    }
+
+    private User getAuthenticatedUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof User)) {
+            throw new IllegalStateException("Utilisateur non authentifié.");
+        }
+        return (User) authentication.getPrincipal();
     }
 
     private SubProgramDTO toDto(SubProgram sp) {
