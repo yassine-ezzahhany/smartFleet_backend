@@ -50,7 +50,7 @@ public class SubProgramController {
         SubProgram sp = subProgramRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("SubProgram", id));
         
-        sp.setStatus(ma.smartfleet.backend.model.enums.SubProgramStatus.IN_PROGRESS);
+        sp.setStatus(ma.smartfleet.backend.model.enums.SubProgramStatus.IN_TRANSIT);
         sp.setStartTime(java.time.LocalDateTime.now());
         
         if (sp.getOrders() != null) {
@@ -71,7 +71,7 @@ public class SubProgramController {
         User user = getAuthenticatedUser();
         List<SubProgram> activeSubPrograms = subProgramRepository.findByDriverIdAndStatus(user.getId(), ma.smartfleet.backend.model.enums.SubProgramStatus.ASSIGNED);
         if (activeSubPrograms.isEmpty()) {
-            activeSubPrograms = subProgramRepository.findByDriverIdAndStatus(user.getId(), ma.smartfleet.backend.model.enums.SubProgramStatus.IN_PROGRESS);
+            activeSubPrograms = subProgramRepository.findByDriverIdAndStatus(user.getId(), ma.smartfleet.backend.model.enums.SubProgramStatus.IN_TRANSIT);
         }
         if (activeSubPrograms.isEmpty()) {
             return ResponseEntity.notFound().build();
