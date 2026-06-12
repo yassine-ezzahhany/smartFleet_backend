@@ -30,16 +30,22 @@ public class DeliveryProgram {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "manager_id", nullable = false)
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
     private Manager manager;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private DeliveryProgramStatus status = DeliveryProgramStatus.PENDING;
 
-    @OneToMany(mappedBy = "deliveryProgram", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "deliveryProgram", cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
     private Set<Order> orders = new HashSet<>();
 
     @OneToMany(mappedBy = "deliveryProgram", cascade = CascadeType.ALL, orphanRemoval = true)
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
     private Set<SubProgram> subPrograms = new HashSet<>();
 
     @Column

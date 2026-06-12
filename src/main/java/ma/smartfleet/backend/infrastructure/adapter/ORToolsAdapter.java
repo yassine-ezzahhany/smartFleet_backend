@@ -10,11 +10,16 @@ import ma.smartfleet.backend.exception.OptimizationException;
 import ma.smartfleet.backend.model.Driver;
 import ma.smartfleet.backend.model.Order;
 import ma.smartfleet.backend.model.Vehicle;
+import ma.smartfleet.backend.model.enums.OrderPriority;
+import ma.smartfleet.backend.service.ValhallaClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Adaptateur d'intégration avec Google OR-Tools pour résoudre le Vehicle Routing Problem (VRP).
@@ -50,7 +55,7 @@ public class ORToolsAdapter {
         private Long driverId;
         private List<Long> orderIds = new ArrayList<>();
         private Double routeDistance; // en mètres
-        private Double routeTime;     // en secondes (estimé sur 50 km/h)
+        private Double routeTime;     // en secondes
         private Double loadedWeightKg;
         private Double loadedVolumeM2;
     }
@@ -60,6 +65,7 @@ public class ORToolsAdapter {
     @NoArgsConstructor
     public static class OptimizationResult {
         private List<RouteSolution> routes = new ArrayList<>();
+        private List<Long> unassignedOrderIds = new ArrayList<>();
         private Double totalDistance = 0.0;
         private Double totalTime = 0.0;
     }
@@ -70,7 +76,9 @@ public class ORToolsAdapter {
     public OptimizationResult optimizeDeliveries(
             List<Order> orders,
             List<Vehicle> vehicles,
-            List<Driver> drivers) {
+            List<Driver> drivers,
+            LocalDateTime plannedDate,
+            ValhallaClient.MatrixResult matrixResult) {
 
         if (orders == null || orders.isEmpty()) {
             throw new OptimizationException("Aucune commande à optimiser.");
@@ -89,39 +97,16 @@ public class ORToolsAdapter {
         log.info("Lancement de l'optimisation OR-Tools : {} commandes, {} véhicules, {} chauffeurs.",
                 numOrders, vehicles.size(), drivers.size());
 
-        // 1. Calculer la matrice de distances (repli de sécurité en Haversine)
-        long[][] distanceMatrix = new long[numNodes][numNodes];
-        for (int i = 0; i < numNodes; i++) {
-            double fromLat = (i == 0) ? depotLat : orders.get(i - 1).getDeliveryLatitude();
-            double fromLon = (i == 0) ? depotLon : orders.get(i - 1).getDeliveryLongitude();
-            for (int j = 0; j < numNodes; j++) {
-                if (i == j) {
-                    distanceMatrix[i][j] = 0;
-                } else {
-                    double toLat = (j == 0) ? depotLat : orders.get(j - 1).getDeliveryLatitude();
-                    double toLon = (j == 0) ? depotLon : orders.get(j - 1).getDeliveryLongitude();
-                    // Haversine en mètres multiplié par 1.3 pour simuler le réseau routier
-                    distanceMatrix[i][j] = (long) Math.round(calculateHaversineDistance(fromLat, fromLon, toLat, toLon) * 1.3);
-                }
-            }
-        }
+        // Récupérer les matrices de distance et durée de Valhalla
+        double[][] distanceMatrix = matrixResult.distances();
+        double[][] durationMatrix = matrixResult.durations();
 
         try {
             // 2. Création du gestionnaire de routage
             RoutingIndexManager manager = new RoutingIndexManager(numNodes, numVehicles, 0);
             RoutingModel routing = new RoutingModel(manager);
 
-            // 3. Enregistrement du callback de transit (distance)
-            final int transitCallbackIndex = routing.registerTransitCallback(
-                (long fromIndex, long toIndex) -> {
-                    int fromNode = manager.indexToNode(fromIndex);
-                    int toNode = manager.indexToNode(toIndex);
-                    return distanceMatrix[fromNode][toNode];
-                }
-            );
-            routing.setArcCostEvaluatorOfAllVehicles(transitCallbackIndex);
-
-            // 4. Enregistrement de la contrainte de poids (Capacité en kg, représentée en grammes)
+            // 3. Enregistrement de la contrainte de poids (Capacité en kg, représentée en grammes)
             final int weightCallbackIndex = routing.registerUnaryTransitCallback(
                 (long fromIndex) -> {
                     int node = manager.indexToNode(fromIndex);
@@ -141,7 +126,7 @@ public class ORToolsAdapter {
                 "Weight"
             );
 
-            // 5. Enregistrement de la contrainte de volume (Capacité en m2, multipliée par 1000 pour conserver la précision)
+            // 4. Enregistrement de la contrainte de volume (Capacité en m2, multipliée par 1000)
             final int volumeCallbackIndex = routing.registerUnaryTransitCallback(
                 (long fromIndex) -> {
                     int node = manager.indexToNode(fromIndex);
@@ -161,7 +146,33 @@ public class ORToolsAdapter {
                 "Volume"
             );
 
-            // 6. Paramètres de recherche
+            // 5. Enregistrement du coût principal (Temps de parcours = durée de transport + déchargement)
+            final int timeCallbackIndex = routing.registerTransitCallback(
+                (long fromIndex, long toIndex) -> {
+                    int fromNode = manager.indexToNode(fromIndex);
+                    int toNode = manager.indexToNode(toIndex);
+                    long travelTime = (long) Math.round(durationMatrix[fromNode][toNode]);
+                    long serviceTime = (fromNode == 0) ? 0L : 600L; // 10 minutes de déchargement
+                    return travelTime + serviceTime;
+                }
+            );
+            routing.setArcCostEvaluatorOfAllVehicles(timeCallbackIndex); // Temps de parcours = coût principal!
+
+            // 6. Gestion des commandes impossibles (Disjunctions) et priorités
+            for (int i = 1; i < numNodes; i++) {
+                long index = manager.nodeToIndex(i);
+                Order order = orders.get(i - 1);
+                
+                long penalty = 1000000L; // 1M par défaut
+                if (order.getPriority() == OrderPriority.HIGH) {
+                    penalty = 10000000L; // 10M
+                } else if (order.getPriority() == OrderPriority.LOW) {
+                    penalty = 100000L; // 100k
+                }
+                routing.addDisjunction(new long[] { index }, penalty);
+            }
+
+            // 7. Paramètres de recherche
             RoutingSearchParameters searchParameters =
                 main.defaultRoutingSearchParameters()
                     .toBuilder()
@@ -169,7 +180,7 @@ public class ORToolsAdapter {
                     .setTimeLimit(com.google.protobuf.Duration.newBuilder().setSeconds(timeLimitSeconds).build())
                     .build();
 
-            // 7. Résolution
+            // 8. Résolution
             Assignment solution = routing.solveWithParameters(searchParameters);
 
             if (solution == null) {
@@ -177,10 +188,11 @@ public class ORToolsAdapter {
                 throw new OptimizationException("Le solveur n'a pas pu trouver de solution d'optimisation valide avec les contraintes spécifiées.");
             }
 
-            // 8. Extraction du résultat
+            // 9. Extraction du résultat
             OptimizationResult result = new OptimizationResult();
             double totalDistance = 0.0;
             double totalTime = 0.0;
+            Set<Long> assignedOrderIds = new HashSet<>();
 
             for (int i = 0; i < numVehicles; i++) {
                 RouteSolution route = new RouteSolution();
@@ -189,6 +201,7 @@ public class ORToolsAdapter {
 
                 long index = routing.start(i);
                 double routeDistance = 0.0;
+                double routeTime = 0.0;
                 double loadedWeight = 0.0;
                 double loadedVolume = 0.0;
 
@@ -197,19 +210,18 @@ public class ORToolsAdapter {
                     if (node != 0) {
                         Order o = orders.get(node - 1);
                         route.getOrderIds().add(o.getId());
+                        assignedOrderIds.add(o.getId());
                         loadedWeight += o.getWeightKg();
                         loadedVolume += o.getVolumeM2();
                     }
                     long nextIndex = solution.value(routing.nextVar(index));
-                    routeDistance += routing.getArcCostForVehicle(index, nextIndex, i);
+                    routeDistance += distanceMatrix[manager.indexToNode(index)][manager.indexToNode(nextIndex)];
+                    routeTime += durationMatrix[manager.indexToNode(index)][manager.indexToNode(nextIndex)];
                     index = nextIndex;
                 }
 
-                // Ne garder la route que si elle contient au moins une commande
                 if (!route.getOrderIds().isEmpty()) {
                     route.setRouteDistance(routeDistance);
-                    // Estimation temps : distance / (vitesse moyenne de 50km/h = 13.88 m/s)
-                    double routeTime = routeDistance / 13.88;
                     route.setRouteTime(routeTime);
                     route.setLoadedWeightKg(loadedWeight);
                     route.setLoadedVolumeM2(loadedVolume);
@@ -220,30 +232,23 @@ public class ORToolsAdapter {
                 }
             }
 
+            // Commandes non assignées
+            for (Order o : orders) {
+                if (!assignedOrderIds.contains(o.getId())) {
+                    result.getUnassignedOrderIds().add(o.getId());
+                }
+            }
+
             result.setTotalDistance(totalDistance);
             result.setTotalTime(totalTime);
 
-            log.info("Optimisation réussie avec {} tournées créées. Distance totale = {}m",
-                    result.getRoutes().size(), totalDistance);
+            log.info("Optimisation réussie avec {} tournées créées et {} commandes non assignées. Distance totale = {}m",
+                    result.getRoutes().size(), result.getUnassignedOrderIds().size(), totalDistance);
             return result;
 
         } catch (Exception ex) {
             log.error("Erreur lors de la résolution du VRP avec OR-Tools :", ex);
             throw new OptimizationException("Erreur interne du solveur d'optimisation : " + ex.getMessage(), ex);
         }
-    }
-
-    /**
-     * Calcule la distance de Haversine en mètres entre deux points géographiques.
-     */
-    private double calculateHaversineDistance(double lat1, double lon1, double lat2, double lon2) {
-        double earthRadius = 6371000.0; // en mètres
-        double dLat = Math.toRadians(lat2 - lat1);
-        double dLon = Math.toRadians(lon2 - lon1);
-        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                   Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
-                   Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return earthRadius * c;
     }
 }

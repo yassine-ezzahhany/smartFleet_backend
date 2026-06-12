@@ -7,8 +7,15 @@ import ma.smartfleet.backend.model.Order;
 import ma.smartfleet.backend.model.SubProgram;
 import ma.smartfleet.backend.model.enums.OrderStatus;
 import ma.smartfleet.backend.model.enums.SubProgramStatus;
+import ma.smartfleet.backend.dto.OrderDTO;
+import ma.smartfleet.backend.model.Client;
+import ma.smartfleet.backend.model.enums.OrderPriority;
+import ma.smartfleet.backend.repository.ClientRepository;
 import ma.smartfleet.backend.repository.OrderRepository;
 import ma.smartfleet.backend.repository.SubProgramRepository;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.PrecisionModel;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +29,38 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final SubProgramRepository subProgramRepository;
+    private final ClientRepository clientRepository;
+    
+    private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
+
+    @Transactional
+    public Order createOrder(OrderDTO dto) {
+        log.info("Creating order: {}", dto.getOrderNumber());
+        Order order = new Order();
+        order.setOrderNumber(dto.getOrderNumber() != null ? dto.getOrderNumber() : "ORD-" + System.nanoTime());
+        
+        Client client = clientRepository.findById(dto.getClientId())
+                .orElseThrow(() -> new ResourceNotFoundException("Client", dto.getClientId()));
+        order.setClient(client);
+        
+        order.setWeightKg(dto.getWeightKg() != null ? dto.getWeightKg() : 0.0);
+        order.setVolumeM2(dto.getVolumeM2() != null ? dto.getVolumeM2() : 0.0);
+        
+        double lat = dto.getDeliveryLatitude() != null ? dto.getDeliveryLatitude() : 0.0;
+        double lon = dto.getDeliveryLongitude() != null ? dto.getDeliveryLongitude() : 0.0;
+        order.setDeliveryLatitude(lat);
+        order.setDeliveryLongitude(lon);
+        order.setDeliveryLocation(geometryFactory.createPoint(new Coordinate(lon, lat)));
+        
+        order.setDeliveryAddress(dto.getDeliveryAddress());
+        order.setDeliveryDescription(dto.getDeliveryDescription());
+        
+        order.setStatus(dto.getStatus() != null ? OrderStatus.valueOf(dto.getStatus().toUpperCase()) : OrderStatus.PENDING);
+        order.setPriority(dto.getPriority() != null ? OrderPriority.valueOf(dto.getPriority().toUpperCase()) : OrderPriority.NORMAL);
+        order.setClientApproved(dto.getClientApproved() != null ? dto.getClientApproved() : false);
+        
+        return orderRepository.save(order);
+    }
 
     @Transactional
     public Order approveDelivery(Long orderId) {

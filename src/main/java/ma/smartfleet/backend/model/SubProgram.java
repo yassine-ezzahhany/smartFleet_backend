@@ -31,17 +31,25 @@ public class SubProgram {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "delivery_program_id", nullable = false)
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
     private DeliveryProgram deliveryProgram;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "driver_id", nullable = false)
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
     private Driver driver;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vehicle_id", nullable = false)
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
     private Vehicle vehicle;
 
-    @OneToMany(mappedBy = "subProgram", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "subProgram", cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
     private Set<Order> orders = new HashSet<>();
 
     @Enumerated(EnumType.STRING)

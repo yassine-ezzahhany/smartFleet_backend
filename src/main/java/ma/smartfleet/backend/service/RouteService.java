@@ -16,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Comparator;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -39,14 +41,19 @@ public class RouteService {
         SubProgram subProgram = subProgramRepository.findById(subProgramId)
                 .orElseThrow(() -> new ResourceNotFoundException("SubProgram", subProgramId));
 
-        List<Coordinate> coords = new ArrayList<>();
-        for (Order o : subProgram.getOrders()) {
-            if (o.getStatus() != OrderStatus.CANCELLED) {
-                coords.add(new Coordinate(o.getDeliveryLatitude(), o.getDeliveryLongitude()));
-            }
-        }
+        List<Order> sortedOrders = subProgram.getOrders().stream()
+                .filter(o -> o.getStatus() != OrderStatus.CANCELLED)
+                .sorted(Comparator.comparing(Order::getVisitSequence, Comparator.nullsLast(Comparator.naturalOrder())))
+                .collect(Collectors.toList());
 
-        RouteResponse resp = valhallaClient.optimizeRoute(depotLat, depotLon, coords);
+        List<Coordinate> routeCoords = new ArrayList<>();
+        routeCoords.add(new Coordinate(depotLat, depotLon));
+        for (Order o : sortedOrders) {
+            routeCoords.add(new Coordinate(o.getDeliveryLatitude(), o.getDeliveryLongitude()));
+        }
+        routeCoords.add(new Coordinate(depotLat, depotLon));
+
+        RouteResponse resp = valhallaClient.calculateRoute(new ValhallaClient.RouteRequest(routeCoords));
         if (resp != null && !resp.routes().isEmpty()) {
             ValhallaClient.Route r = resp.routes().get(0);
             subProgram.setPolyline(r.geometry());

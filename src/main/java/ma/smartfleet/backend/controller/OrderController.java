@@ -5,6 +5,7 @@ import ma.smartfleet.backend.dto.OrderDTO;
 import ma.smartfleet.backend.model.Order;
 import ma.smartfleet.backend.model.enums.OrderStatus;
 import ma.smartfleet.backend.service.OrderService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -14,6 +15,12 @@ import org.springframework.web.bind.annotation.*;
 public class OrderController {
 
     private final OrderService orderService;
+
+    @PostMapping
+    public ResponseEntity<OrderDTO> createOrder(@RequestBody OrderDTO orderDTO) {
+        Order order = orderService.createOrder(orderDTO);
+        return ResponseEntity.status(HttpStatus.CREATED).body(toDto(order));
+    }
 
     @GetMapping("/{id}")
     public ResponseEntity<OrderDTO> getOrder(@PathVariable Long id) {

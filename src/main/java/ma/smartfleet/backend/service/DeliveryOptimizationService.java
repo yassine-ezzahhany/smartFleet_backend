@@ -9,6 +9,7 @@ import ma.smartfleet.backend.model.enums.DeliveryProgramStatus;
 import ma.smartfleet.backend.model.enums.SubProgramStatus;
 import ma.smartfleet.backend.repository.*;
 import ma.smartfleet.backend.infrastructure.adapter.ORToolsAdapter;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +20,14 @@ import java.util.*;
 @Service
 @RequiredArgsConstructor
 public class DeliveryOptimizationService {
+
+    @Value("${app.depot.latitude}")
+    private double depotLat;
+
+    @Value("${app.depot.longitude}")
+    private double depotLon;
+
+    private final ValhallaClient valhallaClient;
 
     private final DeliveryProgramRepository deliveryProgramRepository;
     private final OrderRepository orderRepository;
@@ -38,6 +47,22 @@ public class DeliveryOptimizationService {
             throw new OptimizationException("No orders to optimize in program " + program.getProgramNumber());
         }
 
+        // Dissocier les commandes des anciens sous-programmes et vider la collection existante
+        if (program.getSubPrograms() != null && !program.getSubPrograms().isEmpty()) {
+            for (SubProgram sp : new ArrayList<>(program.getSubPrograms())) {
+                if (sp.getOrders() != null) {
+                    for (Order o : new ArrayList<>(sp.getOrders())) {
+                        o.setSubProgram(null);
+                        orderRepository.save(o);
+                    }
+                    sp.getOrders().clear();
+                }
+            }
+            program.getSubPrograms().clear();
+            deliveryProgramRepository.saveAndFlush(program);
+        }
+
+
         List<Driver> drivers = driverRepository.findByManagerIdAndAvailableTrue(program.getManager().getId());
         List<Vehicle> vehicles = vehicleRepository.findByManagerIdAndActiveTrue(program.getManager().getId());
 
@@ -48,13 +73,23 @@ public class DeliveryOptimizationService {
             throw new OptimizationException("No active vehicles for manager " + program.getManager().getId());
         }
 
-        // 1. Appel du solveur d'optimisation OR-Tools VRP
-        ORToolsAdapter.OptimizationResult optimizationResult = orToolsAdapter.optimizeDeliveries(orders, vehicles, drivers);
+        // 1. Appeler Valhalla pour calculer la vraie matrice des distances et durées
+        List<ValhallaClient.Coordinate> coords = new ArrayList<>();
+        coords.add(new ValhallaClient.Coordinate(depotLat, depotLon)); // Dépôt à l'index 0
+        for (Order o : orders) {
+            coords.add(new ValhallaClient.Coordinate(o.getDeliveryLatitude(), o.getDeliveryLongitude()));
+        }
+
+        ValhallaClient.MatrixResult matrixResult = valhallaClient.getMatrix(coords);
+
+        // 2. Appel du solveur d'optimisation OR-Tools VRP
+        ORToolsAdapter.OptimizationResult optimizationResult = orToolsAdapter.optimizeDeliveries(
+                orders, vehicles, drivers, program.getPlannedDate(), matrixResult);
 
         Set<SubProgram> subPrograms = new HashSet<>();
         int routeCounter = 1;
 
-        // 2. Mappage des tournées optimisées vers les SubPrograms
+        // 3. Mappage des tournées optimisées vers les SubPrograms
         for (ORToolsAdapter.RouteSolution route : optimizationResult.getRoutes()) {
             Vehicle vehicle = vehicles.stream()
                     .filter(v -> v.getId().equals(route.getVehicleId()))
@@ -79,7 +114,8 @@ public class DeliveryOptimizationService {
 
             SubProgram savedSp = subProgramRepository.save(sp);
 
-            // Associer les commandes affectées à cette tournée
+            // Associer les commandes affectées à cette tournée avec visitSequence
+            int seq = 1;
             for (Long orderId : route.getOrderIds()) {
                 Order order = orders.stream()
                         .filter(o -> o.getId().equals(orderId))
@@ -87,6 +123,7 @@ public class DeliveryOptimizationService {
                         .orElse(null);
                 if (order != null) {
                     order.setSubProgram(savedSp);
+                    order.setVisitSequence(seq++);
                     order.setStatus(ma.smartfleet.backend.model.enums.OrderStatus.ASSIGNED);
                     orderRepository.save(order);
                     savedSp.getOrders().add(order);
@@ -96,7 +133,20 @@ public class DeliveryOptimizationService {
             subPrograms.add(savedSp);
         }
 
-        program.setSubPrograms(subPrograms);
+        // 4. Marquer les commandes non assignées comme UNASSIGNED
+        for (Long orderId : optimizationResult.getUnassignedOrderIds()) {
+            Order order = orders.stream()
+                    .filter(o -> o.getId().equals(orderId))
+                    .findFirst()
+                    .orElse(null);
+            if (order != null) {
+                order.setStatus(ma.smartfleet.backend.model.enums.OrderStatus.UNASSIGNED);
+                order.setSubProgram(null);
+                orderRepository.save(order);
+            }
+        }
+
+        program.getSubPrograms().addAll(subPrograms);
         program.setStatus(DeliveryProgramStatus.OPTIMIZED);
         return deliveryProgramRepository.save(program);
     }

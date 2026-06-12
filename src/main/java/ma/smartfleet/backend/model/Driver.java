@@ -27,6 +27,8 @@ public class Driver extends User {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "manager_id", nullable = true)
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
     private Manager manager;
 
     @ManyToMany
@@ -35,6 +37,8 @@ public class Driver extends User {
         joinColumns = @JoinColumn(name = "driver_id"),
         inverseJoinColumns = @JoinColumn(name = "vehicle_id")
     )
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
     private Set<Vehicle> assignedVehicles = new HashSet<>();
 
     @Column(name = "current_latitude")

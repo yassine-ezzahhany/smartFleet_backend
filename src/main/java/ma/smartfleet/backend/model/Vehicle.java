@@ -49,9 +49,13 @@ public class Vehicle {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "manager_id", nullable = false)
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
     private Manager manager;
 
     @ManyToMany(mappedBy = "assignedVehicles")
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
     private Set<Driver> assignedDrivers = new HashSet<>();
 
     @Column(nullable = false)

@@ -27,6 +27,8 @@ public class Client extends User {
     private String businessPhone;
 
     @OneToMany(mappedBy = "client", cascade = CascadeType.ALL, orphanRemoval = true)
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
     private Set<Order> orders = new HashSet<>();
 
     @Column(nullable = false)

@@ -6,6 +6,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.locationtech.jts.geom.Point;
 import ma.smartfleet.backend.model.enums.OrderStatus;
+import ma.smartfleet.backend.model.enums.OrderPriority;
 
 import java.time.LocalDateTime;
 
@@ -30,12 +31,14 @@ public class Order {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "client_id", nullable = false)
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
     private Client client;
 
-    @Column(nullable = false)
+    @Column(name = "weight_kg", nullable = false)
     private Double weightKg;
 
-    @Column(nullable = false)
+    @Column(name = "volume_m2", nullable = false)
     private Double volumeM2;
 
     @Column(name = "delivery_latitude", nullable = false)
@@ -57,12 +60,23 @@ public class Order {
     @Column(nullable = false)
     private OrderStatus status = OrderStatus.PENDING;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private OrderPriority priority = OrderPriority.NORMAL;
+
+    @Column(name = "visit_sequence")
+    private Integer visitSequence;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "delivery_program_id")
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
     private DeliveryProgram deliveryProgram;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sub_program_id")
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
     private SubProgram subProgram;
 
     @Column

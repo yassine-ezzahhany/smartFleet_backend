@@ -17,4 +17,6 @@ public class OrderDTO {
     private String estimatedDeliveryTime;
     private String actualDeliveryTime;
     private Boolean clientApproved;
+    private String priority;
+    private Integer visitSequence;
 }
