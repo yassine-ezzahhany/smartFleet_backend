@@ -10,6 +10,7 @@ import ma.smartfleet.backend.service.RouteService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -37,6 +38,29 @@ public class SubProgramController {
     public ResponseEntity<SubProgramDTO> calculateRoute(@PathVariable Long id) {
         SubProgram sp = routeService.calculateOptimalRoute(id);
         return ResponseEntity.ok(toDto(sp));
+    }
+
+    /**
+     * Démarre un sous-programme : change le statut du sous-programme en IN_PROGRESS,
+     * et met à jour toutes ses commandes associées au statut IN_TRANSIT.
+     */
+    @PutMapping("/{id}/start")
+    @Transactional
+    public ResponseEntity<SubProgramDTO> startSubProgram(@PathVariable Long id) {
+        SubProgram sp = subProgramRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("SubProgram", id));
+        
+        sp.setStatus(ma.smartfleet.backend.model.enums.SubProgramStatus.IN_PROGRESS);
+        sp.setStartTime(java.time.LocalDateTime.now());
+        
+        if (sp.getOrders() != null) {
+            for (ma.smartfleet.backend.model.Order order : sp.getOrders()) {
+                order.setStatus(ma.smartfleet.backend.model.enums.OrderStatus.IN_TRANSIT);
+            }
+        }
+        
+        SubProgram saved = subProgramRepository.save(sp);
+        return ResponseEntity.ok(toDto(saved));
     }
 
     /**

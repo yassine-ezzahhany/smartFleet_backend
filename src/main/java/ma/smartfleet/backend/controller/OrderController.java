@@ -42,6 +42,13 @@ public class OrderController {
         return ResponseEntity.ok(toDto(orderService.approveDelivery(id)));
     }
 
+    @PutMapping("/{id}/status")
+    public ResponseEntity<OrderDTO> updateOrderStatus(@PathVariable Long id,
+                                                      @RequestParam String status) {
+        Order order = orderService.updateStatus(id, status);
+        return ResponseEntity.ok(toDto(order));
+    }
+
     @PostMapping("/{id}/reject")
     public ResponseEntity<OrderDTO> rejectOrder(@PathVariable Long id,
                                                 @RequestBody String reason) {

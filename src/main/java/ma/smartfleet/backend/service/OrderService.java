@@ -133,7 +133,24 @@ public class OrderService {
         return orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Order", id));
     }
+
     public List<Order> findAll() {
-    return orderRepository.findAll();
-}
+        return orderRepository.findAll();
+    }
+
+    @Transactional
+    public Order updateStatus(Long orderId, String statusStr) {
+        log.info("Updating status for order id: {} to {}", orderId, statusStr);
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order", orderId));
+        order.setStatus(OrderStatus.valueOf(statusStr.toUpperCase()));
+        if (order.getStatus() == OrderStatus.DELIVERED) {
+            order.setActualDeliveryTime(LocalDateTime.now());
+        }
+        Order saved = orderRepository.save(order);
+        if (order.getSubProgram() != null) {
+            checkAndCompleteSubProgram(order.getSubProgram().getId());
+        }
+        return saved;
+    }
 }
