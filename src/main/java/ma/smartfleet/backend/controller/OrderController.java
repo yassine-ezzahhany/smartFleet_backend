@@ -24,6 +24,13 @@ public class OrderController {
         return ResponseEntity.status(HttpStatus.CREATED).body(toDto(order));
     }
 
+    @GetMapping
+    public ResponseEntity<List<OrderDTO>> getAllOrders() {
+        List<Order> orders = orderService.findAll();
+        List<OrderDTO> dtos = orders.stream().map(this::toDto).toList();
+        return ResponseEntity.ok(dtos);
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<OrderDTO> getOrder(@PathVariable Long id) {
         Order order = orderService.findById(id);
