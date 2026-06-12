@@ -1,5 +1,7 @@
 package ma.smartfleet.backend.dto;
 
+import java.time.LocalDateTime;
+
 import lombok.*;
 
 @Data @AllArgsConstructor @NoArgsConstructor
