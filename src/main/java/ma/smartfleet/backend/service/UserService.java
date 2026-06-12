@@ -2,6 +2,7 @@ package ma.smartfleet.backend.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import ma.smartfleet.backend.dto.DriverDTO;
 import ma.smartfleet.backend.dto.RegisterRequestDTO;
 import ma.smartfleet.backend.dto.UserDTO;
 import ma.smartfleet.backend.exception.OptimizationException;
@@ -155,6 +156,36 @@ public class UserService {
     public List<UserDTO> getDriversByManager(Long managerId) {
         return driverRepository.findByManagerId(managerId).stream()
                 .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Convertit un Driver en DriverDTO avec ses coordonnées GPS.
+     */
+    public DriverDTO convertToDriverDTO(Driver driver) {
+        DriverDTO dto = new DriverDTO();
+        dto.setId(driver.getId());
+        dto.setEmail(driver.getEmail());
+        dto.setName(driver.getName());
+        dto.setPhone(driver.getPhone());
+        dto.setActive(driver.getActive());
+        dto.setLicenseNumber(driver.getLicenseNumber());
+        dto.setLicenseExpiry(driver.getLicenseExpiry());
+        dto.setAvailable(driver.getAvailable());
+        dto.setManagerId(driver.getManager() != null ? driver.getManager().getId() : null);
+        dto.setCurrentLatitude(driver.getCurrentLatitude());
+        dto.setCurrentLongitude(driver.getCurrentLongitude());
+        dto.setLastLocationUpdate(driver.getLastLocationUpdate());
+        return dto;
+    }
+
+    /**
+     * Récupère les positions GPS actuelles de tous les chauffeurs d'un Manager donné.
+     */
+    @Transactional(readOnly = true)
+    public List<DriverDTO> getDriversLocationsByManager(Long managerId) {
+        return driverRepository.findByManagerId(managerId).stream()
+                .map(this::convertToDriverDTO)
                 .collect(Collectors.toList());
     }
 

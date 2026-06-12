@@ -17,4 +17,7 @@ public class DriverDTO {
     private Boolean available;
     private Boolean active;
     private Long managerId;
+    private Double currentLatitude;
+    private Double currentLongitude;
+    private Long lastLocationUpdate;
 }

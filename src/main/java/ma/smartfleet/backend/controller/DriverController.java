@@ -1,6 +1,7 @@
 package ma.smartfleet.backend.controller;
 
 import lombok.RequiredArgsConstructor;
+import ma.smartfleet.backend.dto.DriverDTO;
 import ma.smartfleet.backend.dto.DriverLocationUpdateDTO;
 import ma.smartfleet.backend.dto.UserDTO;
 import ma.smartfleet.backend.model.User;
@@ -65,6 +66,16 @@ public class DriverController {
     public ResponseEntity<List<UserDTO>> getMyDrivers() {
         User user = getAuthenticatedUser();
         return ResponseEntity.ok(userService.getDriversByManager(user.getId()));
+    }
+
+    /**
+     * Récupère les positions GPS et statuts en temps réel de tous les chauffeurs affectés au manager connecté.
+     */
+    @GetMapping("/my-drivers/locations")
+    @PreAuthorize("hasRole('MANAGER')")
+    public ResponseEntity<List<DriverDTO>> getMyDriversLocations() {
+        User user = getAuthenticatedUser();
+        return ResponseEntity.ok(userService.getDriversLocationsByManager(user.getId()));
     }
 
     /**
