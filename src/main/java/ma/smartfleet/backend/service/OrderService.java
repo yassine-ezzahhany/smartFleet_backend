@@ -45,8 +45,17 @@ public class OrderService {
         Order order = new Order();
         order.setOrderNumber(dto.getOrderNumber() != null ? dto.getOrderNumber() : "ORD-" + System.nanoTime());
         
-        Client client = clientRepository.findById(dto.getClientId())
-                .orElseThrow(() -> new ResourceNotFoundException("Client", dto.getClientId()));
+        Client client;
+        if (dto.getClientId() == null) {
+            List<Client> clients = clientRepository.findAll();
+            if (clients.isEmpty()) {
+                throw new ResourceNotFoundException("No Client found in database to assign the order to.");
+            }
+            client = clients.get(0);
+        } else {
+            client = clientRepository.findById(dto.getClientId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Client", dto.getClientId()));
+        }
         order.setClient(client);
         
         order.setWeightKg(dto.getWeightKg() != null ? dto.getWeightKg() : 0.0);

@@ -41,112 +41,58 @@
 ### Code Source
 ```
 /src/main/java/ma/smartfleet/backend/
-├── BackendApplication.java              ← Classe principale
-├── domain/
-│   ├── model/                          ← Entités JPA
-│   │   ├── User.java                   ← Classe parente utilisateurs
-│   │   ├── Manager.java
-│   │   ├── Driver.java                 ← Avec PostGIS Location
-│   │   ├── Client.java                 ← Avec Firebase token
-│   │   ├── Vehicle.java                ← Avec capacités m2/kg
-│   │   ├── Order.java                  ← Avec PostGIS Point
-│   │   ├── DeliveryProgram.java
-│   │   ├── SubProgram.java             ← Tournée (1 driver + 1 vehicle)
-│   │   └── enums/
-│   │       ├── UserRole.java
-│   │       ├── OrderStatus.java
-│   │       ├── DeliveryProgramStatus.java
-│   │       └── SubProgramStatus.java
-│   ├── service/                        ← Interfaces de services métier
-│   │   ├── DeliveryOptimizationService.java
-│   │   ├── RouteCalculationService.java
-│   │   ├── LocationTrackingService.java
-│   │   ├── OrderManagementService.java
-│   │   ├── NotificationService.java
-│   │   ├── AuthenticationService.java
-│   │   └── OptimizationStats.java
-│   └── exception/
-│       ├── SmartFleetException.java
-│       ├── ResourceNotFoundException.java
-│       ├── OptimizationException.java
-│       └── ValhallaServiceException.java
-├── application/                        ← À implémenter
-│   ├── service/impl/                   ← Implémentations services (NEXT)
-│   ├── dto/                            ← DTOs API
-│   │   ├── UserDTO.java
-│   │   ├── OrderDTO.java
-│   │   ├── DeliveryProgramDTO.java
-│   │   ├── SubProgramDTO.java
-│   │   ├── DriverLocationUpdateDTO.java
-│   │   └── OrderApprovalDTO.java
-│   └── mapper/                         ← Mappers (DTOs ↔ Entités)
-├── infrastructure/                     ← Détails techniques
-│   ├── adapter/                        ← Adaptateurs externes
-│   │   ├── ORToolsAdapter.java         ← VRP interface
-│   │   └── ValhallaAdapter.java        ← Route optimization interface
-│   ├── config/                         ← Configuration Spring (NEXT)
-│   ├── persistence/                    ← Repositories JPA
-│   │   ├── UserRepository.java
-│   │   ├── ManagerRepository.java
-│   │   ├── DriverRepository.java       ← Avec queries PostGIS
-│   │   ├── ClientRepository.java
-│   │   ├── VehicleRepository.java
-│   │   ├── OrderRepository.java        ← Avec queries PostGIS
-│   │   ├── DeliveryProgramRepository.java
-│   │   └── SubProgramRepository.java
-│   └── rest/                           ← Clients HTTP (NEXT)
-├── presentation/                       ← À implémenter
-│   ├── controller/                     ← Endpoints REST (NEXT)
-│   └── websocket/                      ← WebSocket STOMP (NEXT)
-└── shared/
-    ├── constants/
-    │   └── AppConstants.java           ← Constantes centralisées
-    └── utility/                        ← Utilitaires (NEXT)
+├── config/                             # Configuration Spring (Sécurité, WebSockets, etc.)
+├── controller/                         # Contrôleurs REST (Couche API/Présentation)
+├── dto/                                # Data Transfer Objects
+├── exception/                          # Gestionnaires d'exceptions personnalisées
+├── infrastructure/                     # Intégrations (OR-Tools, client Valhalla)
+│   └── adapter/                        # Adaptateurs externes
+│       └── ORToolsAdapter.java         # Adaptateur OR-Tools
+├── model/                              # Entités JPA et énumérations (Base de données)
+│   └── enums/                          # Énumérations (UserRole, OrderStatus, etc.)
+├── repository/                         # Repositories Spring Data JPA
+├── service/                            # Services métier (Logique d'application)
+├── util/                               # Utilitaires (JwtTokenProvider, etc.)
+└── BackendApplication.java             # Classe principale
 ```
 
 ---
 
 ## 🔑 Fichiers Clés par Use Case
 
-### Authentification (Clerk JWT)
-- **Interface:** `domain/service/AuthenticationService.java`
-- **Entité:** `domain/model/User.java`, `Manager.java`, `Driver.java`, `Client.java`
-- **Repository:** `infrastructure/persistence/UserRepository.java`
-- **DTO:** `application/dto/UserDTO.java`
-- **À implémenter:** `application/service/impl/AuthenticationServiceImpl.java`
+### Authentification (Base de Données locale + JWT)
+- **Controller:** `controller/AuthController.java`
+- **Service:** `service/UserService.java`
+- **Security:** `config/SecurityConfig.java`, `config/JwtAuthenticationFilter.java`
+- **Entité:** `model/User.java` (avec mot de passe encodé)
+- **Repository:** `repository/UserRepository.java`
+- **DTO:** `dto/UserDTO.java`, `dto/RegisterRequestDTO.java`, `dto/LoginRequestDTO.java`
 
 ### Optimisation Tournées (OR-Tools)
-- **Interface:** `domain/service/DeliveryOptimizationService.java`
+- **Service:** `service/DeliveryOptimizationService.java`
 - **Adaptateur:** `infrastructure/adapter/ORToolsAdapter.java`
-- **Entités:** `domain/model/DeliveryProgram.java`, `SubProgram.java`
-- **Repositories:** `infrastructure/persistence/DeliveryProgramRepository.java`, `SubProgramRepository.java`
-- **À implémenter:** `application/service/impl/DeliveryOptimizationServiceImpl.java`
+- **Entités:** `model/DeliveryProgram.java`, `model/SubProgram.java`
+- **Repositories:** `repository/DeliveryProgramRepository.java`, `repository/SubProgramRepository.java`
 
 ### Calcul d'Itinéraires (Valhalla)
-- **Interface:** `domain/service/RouteCalculationService.java`
-- **Adaptateur:** `infrastructure/adapter/ValhallaAdapter.java`
-- **Entité:** `domain/model/SubProgram.java` (polyline)
-- **À implémenter:** `application/service/impl/RouteCalculationServiceImpl.java`
+- **Service:** `service/RouteService.java`
+- **Client Valhalla:** `service/ValhallaClient.java`
+- **Entité:** `model/SubProgram.java` (polyline)
 
 ### Traçabilité Temps Réel (WebSocket)
-- **Interface:** `domain/service/LocationTrackingService.java`
-- **Entité:** `domain/model/Driver.java` (currentLocation PostGIS)
-- **DTO:** `application/dto/DriverLocationUpdateDTO.java`
-- **Repository:** `infrastructure/persistence/DriverRepository.java` (findDriversNearby)
-- **À implémenter:** `application/service/impl/LocationTrackingServiceImpl.java`
-- **À implémenter:** `presentation/websocket/LocationWebSocketHandler.java`
+- **Service:** `service/LocationTrackingService.java`
+- **Entité:** `model/Driver.java` (currentLocation PostGIS)
+- **DTO:** `dto/DriverLocationUpdateDTO.java`
+- **Repository:** `repository/DriverRepository.java`
 
-### Approbation Livraison
-- **Interface:** `domain/service/OrderManagementService.java`
-- **Entités:** `domain/model/Order.java`, `SubProgram.java`
-- **Repositories:** `infrastructure/persistence/OrderRepository.java`, `SubProgramRepository.java`
-- **DTO:** `application/dto/OrderApprovalDTO.java`
-- **À implémenter:** `application/service/impl/OrderManagementServiceImpl.java`
+### Approbation Livraison & Gestion Commandes
+- **Service:** `service/OrderService.java`
+- **Entités:** `model/Order.java`, `model/SubProgram.java`
+- **Repositories:** `repository/OrderRepository.java`, `repository/SubProgramRepository.java`
 
 ### Notifications Push (Firebase)
-- **Interface:** `domain/service/NotificationService.java`
+- **Service:** `service/NotificationService.java`
 - **Configuration:** `src/main/resources/firebase-config.json`
-- **À implémenter:** `application/service/impl/NotificationServiceImpl.java`
 
 ---
 
@@ -155,7 +101,7 @@
 ### Variables Requises
 Voir `application-prod.properties` pour les variables d'environnement:
 - `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`
-- `CLERK_ISSUER`, `CLERK_AUDIENCE`, `JWT_SECRET`
+- `JWT_SECRET`, `JWT_EXPIRATION`
 - `VALHALLA_SERVICE_URL`
 - `FIREBASE_CONFIG_PATH`
 - `ALLOWED_ORIGINS`, `SSL_ENABLED`, etc.
@@ -175,7 +121,7 @@ docker-compose up -d
 ## 📊 Flux d'Implémentation Recommandé
 
 ### Semaine 1-2: Services de Base
-1. `AuthenticationServiceImpl` - Intégration Clerk
+1. `SecurityConfig` - Configuration Spring Security et Filtre JWT
 2. `OrderManagementServiceImpl` - Gestion commandes
 3. Tests + DTOs/Mappers
 
@@ -232,11 +178,10 @@ CREATE EXTENSION postgis;
 - **Livraisons:** Order, DeliveryProgram, SubProgram
 
 ### Services
-- **Tous** implémentés en: `infrastructure/adapter/` + `application/service/impl/`
+- Implémentés sous `service/` et `infrastructure/adapter/`
 
-### API
-- **À créer:** `presentation/controller/`
-- **WebSocket:** `presentation/websocket/`
+### API & WebSockets
+- Implémentés sous `controller/`
 
 ### Configuration
 - **Base:** `application.properties`
@@ -247,15 +192,11 @@ CREATE EXTENSION postgis;
 
 ## ✅ Checklist d'Implémentation
 
-- [ ] Service implementations (application/service/impl/)
-- [ ] Mappers (application/mapper/)
-- [ ] Contrôleurs REST (presentation/controller/)
-- [ ] WebSocket STOMP handlers (presentation/websocket/)
-- [ ] Global exception handler
-- [ ] Configuration Security (infrastructure/config/)
-- [ ] Tests unitaires
-- [ ] Tests d'intégration
-- [ ] OpenAPI/Swagger docs
+- [x] Implémentation des services (`service/`)
+- [x] Contrôleurs REST et Endpoints (`controller/`)
+- [x] Configuration Security (`config/`)
+- [x] Tests unitaires et d'intégration
+- [x] Documentation OpenAPI/Swagger
 - [ ] Déploiement production
 
 ---

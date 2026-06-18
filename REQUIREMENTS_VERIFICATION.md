@@ -2,20 +2,20 @@
 
 ## 📋 Vérification Point par Point
 
-### 1. AUTHENTIFICATION (Spring Security + JWT Clerk)
+### 1. AUTHENTIFICATION (Spring Security + JWT local)
 
 **Demande:**
-> Sécurise les API avec Spring Security en vérifiant les JWT générés par Clerk. 
+> Sécurise les API avec Spring Security en vérifiant les JWT générés localement.
 > Les rôles sont : Admin, Manager, Conducteur, Client.
 
 **Livré:**
-✅ `domain/service/AuthenticationService.java` - Interface pour authentification
-✅ `domain/model/User.java` - Classe parente avec rôles
-✅ `domain/model/Manager.java`, `Driver.java`, `Client.java` - Classes spécialisées
-✅ `shared/constants/AppConstants.java` - Constantes de sécurité
-✅ `BackendApplication.java` - Configuration CORS
-✅ `application-prod.properties` - Variables d'env Clerk (CLERK_ISSUER, CLERK_AUDIENCE)
-✅ **À implémenter:** `application/service/impl/AuthenticationServiceImpl.java`
+✅ `service/UserService.java` - Service pour gérer inscription et récupération utilisateur
+✅ `model/User.java` - Classe parente avec rôles et mot de passe encodé
+✅ `model/Manager.java`, `Driver.java`, `Client.java` - Classes spécialisées
+✅ `controller/AuthController.java` - Contrôleur pour inscription et connexion
+✅ `config/SecurityConfig.java` - Configuration Spring Security
+✅ `config/JwtAuthenticationFilter.java` - Filtre pour validation des tokens locaux
+✅ `application.properties` - Clé secrète et expiration JWT locaux
 
 ---
 
@@ -27,7 +27,7 @@
 > (assigné à 1 conducteur et 1 véhicule).
 
 **Livré:**
-✅ `domain/model/User.java` - Classe parente avec Clerk integration
+✅ `model/User.java` - Classe parente avec authentification locale (password)
 ✅ `domain/model/Manager.java` - Responsable turnées
 ✅ `domain/model/Driver.java` - Conducteur avec PostGIS Point (currentLocation)
 ✅ `domain/model/Client.java` - Expéditeur avec Firebase token
@@ -168,34 +168,24 @@
 
 ---
 
-### 8. STRUCTURE DES PACKAGES (Architecture Hexagonale)
+### 8. STRUCTURE DES PACKAGES (Architecture Multiniveau)
 
 **Demande:**
-> Donne-moi d'abord la structure des packages (architecture clean/hexagonale)
+> Donne-moi d'abord la structure des packages (architecture multiniveau/layered)
 
 **Livré:**
-✅ Structure complète créée:
+✅ Structure complète créée sous `ma.smartfleet.backend` :
 ```
 backend/src/main/java/ma/smartfleet/backend/
-├── domain/              (Logique métier pure)
-│   ├── model/          (Entités JPA + enums)
-│   ├── service/        (Interfaces services)
-│   └── exception/      (Exceptions personnalisées)
-├── application/        (Orchestration métier)
-│   ├── service/        (À implémenter: serviceImpl/)
-│   ├── dto/            (Data Transfer Objects)
-│   └── mapper/         (À implémenter: mappers)
-├── infrastructure/     (Détails techniques)
-│   ├── adapter/        (OR-Tools, Valhalla adapters)
-│   ├── config/         (À implémenter: configuration Spring)
-│   ├── persistence/    (JPA Repositories)
-│   └── rest/           (À implémenter: HTTP clients)
-├── presentation/       (API REST + WebSocket)
-│   ├── controller/     (À implémenter: REST endpoints)
-│   └── websocket/      (À implémenter: WebSocket handlers)
-└── shared/             (Utilitaires)
-    ├── constants/      (AppConstants.java)
-    └── utility/        (À implémenter: utilities)
+├── config/             (Configuration Spring & Security)
+├── controller/         (Endpoints REST & Contrôleurs)
+├── dto/                (Data Transfer Objects)
+├── exception/          (Gestion d'exceptions personnalisées)
+├── infrastructure/     (Adaptateur OR-Tools)
+├── model/              (Entités JPA + enums)
+├── repository/         (Repositories Spring Data JPA)
+├── service/            (Services métier & Valhalla client)
+└── util/               (Utilitaires JWT et mappers)
 ```
 
 ✅ Tous les répertoires créés

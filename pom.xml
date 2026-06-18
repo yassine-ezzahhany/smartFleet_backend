@@ -75,7 +75,7 @@
 			<version>1.19.0</version>
 		</dependency>
 
-		<!-- JWT Token Support (Clerk Integration) -->
+		<!-- JWT Token Support (Local Security) -->
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-api</artifactId>

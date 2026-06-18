@@ -102,10 +102,10 @@ mvn clean test jacoco:report
 
 ## 🔧 Configuration Rapide
 
-**Clerk JWT:** Modifier `application-dev.properties`
+**JWT Security:** Modifier `application.properties` ou variables d'environnement (`.env`)
 ```properties
-app.security.clerk.issuer=YOUR_CLERK_DOMAIN
-app.security.clerk.audience=YOUR_CLERK_DOMAIN
+app.security.jwt.secret=YOUR_JWT_SECRET
+app.security.jwt.expiration-ms=86400000
 ```
 
 **Valhalla:** S'il est hébergé ailleurs

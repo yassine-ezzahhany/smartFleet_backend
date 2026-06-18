@@ -8,29 +8,21 @@ Ce document récapitule tous les éléments fournis pour le backend SmartFleet, 
 
 ## 1️⃣ Structure du Projet
 
-### Architecture Hexagonale (Clean Architecture)
+### Structure des Packages (Architecture Multiniveau)
 
 ```
 backend/src/main/java/ma/smartfleet/backend/
-├── domain/                    # Logique métier pure
-│   ├── model/                # Entités JPA et enums
-│   ├── service/              # Interfaces des services métier
-│   └── exception/            # Exceptions personnalisées
-├── application/              # Orchestration métier
-│   ├── service/              # Implémentation des use cases
-│   ├── dto/                  # Data Transfer Objects
-│   └── mapper/               # Mappage entités <-> DTOs
-├── infrastructure/           # Détails techniques
-│   ├── adapter/              # Adaptateurs (OR-Tools, Valhalla)
-│   ├── config/               # Configuration Spring
-│   ├── persistence/          # Repositories JPA
-│   └── rest/                 # Clients HTTP
-├── presentation/             # Couche API
-│   ├── controller/           # Endpoints REST
-│   └── websocket/            # Endpoints WebSocket
-└── shared/                   # Utilitaires
-    ├── constants/            # Constantes applicatives
-    └── utility/              # Fonctions utilitaires
+├── config/                   # Configuration Spring (Sécurité, WebSockets, etc.)
+├── controller/               # Endpoints REST (Couche API)
+├── dto/                      # Data Transfer Objects
+├── exception/                # Exceptions personnalisées et gestionnaires d'erreurs
+├── infrastructure/           # Intégrations (OR-Tools, client Valhalla)
+│   └── adapter/              # Adaptateurs (ORToolsAdapter)
+├── model/                    # Entités JPA et Enums
+│   └── enums/                # Énumérations (UserRole, OrderStatus, etc.)
+├── repository/               # Repositories JPA
+├── service/                  # Services métier (Logique d'application)
+└── util/                     # Utilitaires (Générateur JWT, etc.)
 ```
 
 ---
@@ -41,7 +33,7 @@ backend/src/main/java/ma/smartfleet/backend/
 
 | Entité | Description |
 |--------|-------------|
-| **User** | Classe parente (abstract) avec authentification Clerk |
+| **User** | Classe parente (abstract) avec authentification locale |
 | **Manager** | Responsable de turnées de livraison |
 | **Driver** | Conducteur avec suivi GPS en temps réel |
 | **Client** | Client/Expéditeur avec notifications Firebase |
@@ -84,7 +76,7 @@ order.delivery_location → geography(POINT,4326)
 | **LocationTrackingService** | Suivi GPS et géolocalisation |
 | **OrderManagementService** | Gestion du cycle de vie des commandes |
 | **NotificationService** | Notifications push Firebase |
-| **AuthenticationService** | Intégration Clerk JWT |
+| **UserService** | Gestion des utilisateurs et de l'enregistrement |
 
 ### Méthodes Clés
 
@@ -227,9 +219,8 @@ spring.datasource.url=jdbc:postgresql://localhost:5432/smartfleet_db_dev
 spring.jpa.database-platform=org.hibernate.spatial.dialect.postgis.PostgisDialect
 
 # Security & JWT
-app.security.clerk.issuer=...
-app.jwt.secret=...
-app.jwt.expiration=86400000
+app.security.jwt.secret=...
+app.security.jwt.expiration-ms=86400000
 
 # Valhalla
 valhalla.service.url=http://localhost:8002
@@ -258,14 +249,14 @@ location.tracking.nearby-radius-km=1.0
 
 ## 8️⃣ Configuration de Sécurité
 
-### Authentification (Clerk JWT)
+### Authentification (Base de Données locale + JWT)
 
 ```java
-// Spring Security OAuth2 Resource Server
+// Spring Security avec filtre d'authentification personnalisé
 @EnableWebSecurity
-public class SecurityConfiguration {
-    // Validation des JWT Clerk
-    // Synchronisation utilisateurs
+public class SecurityConfig {
+    // Validation des JWT locaux via JwtAuthenticationFilter
+    // Gestion des sessions stateless
 }
 ```
 
@@ -336,7 +327,7 @@ FIREBASE_TITLE_COMPLETE = "Tournée terminée"
 
 | Document | Contenu |
 |----------|---------|
-| **ARCHITECTURE.md** | Architecture hexagonale, flux métier, entités |
+| **ARCHITECTURE.md** | Architecture multiniveau, flux métier, entités |
 | **README.md** | Quick start, dépendances, déploiement |
 | **IMPLEMENTATION_GUIDE.md** | Guide détaillé pour implémenter les services |
 | **DELIVERABLES.md** | Ce document (récapitulatif) |
@@ -407,7 +398,7 @@ Client approuve → Order.clientApproved = true
 
 ## 🔐 Sécurité Implémentée
 
-✅ Authentification JWT (Clerk)  
+✅ Authentification JWT locale (BD + Spring Security)  
 ✅ Autorisation par rôles (RBAC)  
 ✅ CORS configuré  
 ✅ Validation des entrées  
@@ -466,7 +457,7 @@ Client approuve → Order.clientApproved = true
 2. **OR-Tools Native**: Bibliothèque native requise pour le système d'exploitation
 3. **Valhalla**: Service peut être auto-hébergé ou cloud (provider)
 4. **Firebase**: Configuration JSON requise pour notifications push
-5. **Clerk**: Configuration du domaine JWT essentiell pour authentification
+5. **JWT** : Configuration de la clé secrète JWT essentielle pour l'authentification localisée
 
 ---
 

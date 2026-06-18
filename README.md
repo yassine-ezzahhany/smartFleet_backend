@@ -9,7 +9,7 @@ Backend d'une application de gestion logistique complète avec optimisation des 
 
 ## 🎯 Fonctionnalités
 
-- ✅ **Authentification sécurisée** avec JWT (Clerk)
+- ✅ **Authentification sécurisée** avec JWT local (base de données + Spring Security)
 - ✅ **Optimisation des tournées** avec OR-Tools (Vehicle Routing Problem)
 - ✅ **Calcul d'itinéraires** avec Valhalla
 - ✅ **Traçabilité en temps réel** via WebSocket STOMP
@@ -19,13 +19,17 @@ Backend d'une application de gestion logistique complète avec optimisation des 
 
 ## 🏗️ Architecture
 
-Le projet suit une **architecture hexagonale (clean architecture)** divisée en 6 couches :
+Le projet suit une **architecture multiniveau (N-Tier/layered architecture)** divisée en packages clairs :
 
-1. **Domain** - Logique métier (indépendante des frameworks)
-2. **Application** - Orchestration des services (use cases)
-3. **Infrastructure** - Détails techniques (BD, services externes)
-4. **Presentation** - API REST et WebSocket
-5. **Shared** - Utilitaires et constantes
+1. **config** - Configurations de Spring Boot (sécurité, websocket, etc.)
+2. **controller** - Endpoints de l'API REST (Presentation)
+3. **dto** - Objets de transfert de données (Data Transfer Objects)
+4. **exception** - Exceptions personnalisées et gestion d'erreurs
+5. **infrastructure** - Adaptateurs externes (OR-Tools, client Valhalla)
+6. **model** - Entités JPA et énumérations (Base de données)
+7. **repository** - Interfaces d'accès aux données (Spring Data JPA)
+8. **service** - Logique métier de l'application
+9. **util** - Fonctions utilitaires (générateur de JWT, etc.)
 
 Voir [ARCHITECTURE.md](ARCHITECTURE.md) pour plus de détails.
 
@@ -67,9 +71,9 @@ spring.datasource.url=jdbc:postgresql://localhost:5432/smartfleet_db_dev
 spring.datasource.username=smartfleet_user
 spring.datasource.password=smartfleet_password
 
-# Clerk JWT
-app.security.clerk.issuer=https://your-clerk-domain
-app.security.clerk.audience=https://your-clerk-domain
+# Custom JWT Security
+app.security.jwt.secret=smartfleetsecretkeysmartfleetsecretkeysmartfleetsecretkey
+app.security.jwt.expiration-ms=86400000
 
 # Valhalla (service local ou distant)
 valhalla.service.url=http://localhost:8002
@@ -108,11 +112,15 @@ backend/
 │
 ├── src/main/
 │   ├── java/ma/smartfleet/backend/
-│   │   ├── domain/                 # Couche domaine
-│   │   ├── application/            # Couche application
-│   │   ├── infrastructure/         # Couche infrastructure
-│   │   ├── presentation/           # Couche présentation
-│   │   ├── shared/                 # Utilitaires
+│   │   ├── config/                 # Config Spring Security & Web
+│   │   ├── controller/             # Contrôleurs REST
+│   │   ├── dto/                    # Data Transfer Objects
+│   │   ├── exception/              # Exceptions personnalisées
+│   │   ├── infrastructure/         # Adaptateurs (OR-Tools, etc.)
+│   │   ├── model/                  # Entités JPA et Enums
+│   │   ├── repository/             # Repositories JPA
+│   │   ├── service/                # Services métier
+│   │   ├── util/                   # Utilitaires (JWT, etc.)
 │   │   └── BackendApplication.java # Classe principale
 │   │
 │   └── resources/
@@ -147,9 +155,9 @@ ValhallaAdapter.RouteRequest request = new RouteAdapter.RouteRequest(coordinates
 ValhallaAdapter.RouteResponse response = valhallaAdapter.calculateRoute(request);
 ```
 
-### Clerk (Authentification)
+### Sécurité et JWT (Authentification)
 
-JWT validation automatique via Spring Security :
+Validation automatique du jeton JWT local via `JwtAuthenticationFilter` dans Spring Security :
 ```java
 @PreAuthorize("hasRole('DRIVER')")
 public ResponseEntity<SubProgramDTO> getSubProgram(@PathVariable Long id) { ... }
@@ -201,10 +209,10 @@ Indices PostGIS :
 
 ### Authentification
 
-1. **Clerk génère un JWT**
-2. **Client envoie le JWT dans le header Authorization**
-3. **Backend valide via Spring Security OAuth2**
-4. **Synchronisation de l'utilisateur en base**
+1. **Le client envoie son Email et Mot de passe (ou s'enregistre) via `/auth/login` ou `/auth/register`**
+2. **Le backend valide et génère un JWT local**
+3. **Le client envoie le JWT dans le header Authorization `Bearer <token>` pour les requêtes suivantes**
+4. **Spring Security valide le token localement et charge l'utilisateur authentifié**
 
 ### Autorisation (par Rôle)
 
@@ -302,10 +310,8 @@ DB_URL=jdbc:postgresql://db-host:5432/smartfleet_db
 DB_USERNAME=smartfleet_user
 DB_PASSWORD=<strong-password>
 
-# Clerk
-CLERK_ISSUER=https://your-clerk-domain
-CLERK_AUDIENCE=https://your-clerk-domain
-JWT_SECRET=<strong-secret>
+# JWT Security
+JWT_SECRET=smartfleetsecretkeysmartfleetsecretkeysmartfleetsecretkey
 JWT_EXPIRATION=86400000
 
 # Valhalla
@@ -346,11 +352,11 @@ ERROR: Failed to connect to Valhalla
 ```
 **Solution:** Vérifier que Valhalla est en cours d'exécution sur le port 8002
 
-### Erreur Clerk JWT
+### Erreur JWT
 ```
 ERROR: Invalid JWT token
 ```
-**Solution:** Vérifier les valeurs `CLERK_ISSUER` et `CLERK_AUDIENCE`
+**Solution:** Vérifier la clé `JWT_SECRET` et sa longueur (au moins 256 bits)
 
 ## 📞 Support et Contribution
 
@@ -368,7 +374,7 @@ Ce projet est sous licence MIT. Voir [LICENSE](LICENSE) pour plus de détails.
 - [OR-Tools](https://developers.google.com/optimization)
 - [Valhalla](https://valhalla.readthedocs.io/)
 - [Firebase](https://firebase.google.com/)
-- [Clerk](https://clerk.com/)
+- [Spring Security](https://spring.io/projects/spring-security)
 - [PostGIS](https://postgis.net/)
 
 ---

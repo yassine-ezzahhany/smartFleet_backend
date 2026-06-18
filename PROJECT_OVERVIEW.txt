@@ -1,6 +1,6 @@
 ╔════════════════════════════════════════════════════════════════════════════════╗
 ║                        SMARTFLEET BACKEND - PROJECT OVERVIEW                   ║
-║                     Architecture Hexagonale / Clean Architecture                ║
+║                     Architecture Multiniveau (N-Tier/layered)                  ║
 ║                                  Spring Boot 3.3.5                             ║
 ╚════════════════════════════════════════════════════════════════════════════════╝
 
@@ -13,7 +13,7 @@
   ✅ Calcul d'itinéraires (Valhalla)
   ✅ Suivi en temps réel des conducteurs (WebSocket STOMP)
   ✅ Notifications push (Firebase)
-  ✅ Authentification sécurisée (Clerk JWT)
+  ✅ Authentification sécurisée (JWT locale / BD)
   ✅ Données géospatiales (PostgreSQL + PostGIS)
 
 🏗️ ARCHITECTURE
@@ -28,7 +28,7 @@
   ┌─────────────────────────────────────────────────────────────────────────┐
   │                          APPLICATION LAYER                             │
   │  Service Implementations + DTOs + Mappers + Use Cases                 │
-  │  AuthenticationServiceImpl | DeliveryOptimizationServiceImpl | ...      │
+  │  UserService | DeliveryOptimizationService | RouteService | ...         │
   └──────────────────────────────┬──────────────────────────────────────────┘
                                  ↓
   ┌─────────────────────────────────────────────────────────────────────────┐
@@ -45,7 +45,7 @@
                                  ↓
   ┌─────────────────────────────────────────────────────────────────────────┐
   │                        EXTERNAL SERVICES                               │
-  │  PostgreSQL+PostGIS | Valhalla | OR-Tools | Firebase | Clerk         │
+  │  PostgreSQL+PostGIS | Valhalla | OR-Tools | Firebase                  │
   └─────────────────────────────────────────────────────────────────────────┘
 
 📊 ENTITIES (JPA MODEL)
@@ -74,9 +74,9 @@
   ├─ Retourne: Polylines + Distances + Durées
   └─ Optimise: Ordre visite points
 
-  Clerk (Authentication)
-  ├─ Génère: JWT tokens
-  └─ Backend: Valide via OAuth2 Resource Server
+  JWT local (Authentication)
+  ├─ Enregistrement / Connexion via /auth/register et /auth/login
+  └─ Génère / Valide les jetons localement via Spring Security
 
   Firebase (Notifications)
   ├─ Envoie: Notifications push conducteurs
@@ -144,7 +144,7 @@
 🔐 SECURITY
 ═══════════════════════════════════════════════════════════════════════════════════
 
-  Authentication:  JWT via Clerk OAuth2 Resource Server
+  Authentication:  JWT local avec filtres Spring Security (stateless)
   Authorization:   Role-based (ADMIN, MANAGER, DRIVER, CLIENT)
   CORS:            Configured for localhost:3000, localhost:3001
   Validation:      Input validation + Custom exceptions

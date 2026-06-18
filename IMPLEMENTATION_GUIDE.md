@@ -2,60 +2,53 @@
 
 ## 📋 Vue d'ensemble
 
-Ce guide fournit les directives pour implémenter les services de la couche **application** qui orchestrent la logique métier définie dans la couche **domain**.
+Ce guide fournit les directives pour implémenter les différents services et configurations du backend.
 
 ## 🏗️ Structure d'Implémentation
 
-### 1. Services de la Couche Application
+### 1. Structure d'Implémentation des Services
 
-La couche `application/service/` doit implémenter les interfaces du `domain/service/`.
+Les classes d'implémentations se trouvent directement sous `ma.smartfleet.backend.service`.
 
 ```
-application/service/
-├── impl/
-│   ├── DeliveryOptimizationServiceImpl.java
-│   ├── RouteCalculationServiceImpl.java
-│   ├── LocationTrackingServiceImpl.java
-│   ├── OrderManagementServiceImpl.java
-│   ├── NotificationServiceImpl.java
-│   └── AuthenticationServiceImpl.java
-├── strategy/
-│   └── OptimizationStrategy.java (pattern Strategy pour OR-Tools)
-└── event/
-    └── DeliveryEventPublisher.java
+service/
+├── UserService.java             # Gestion des utilisateurs (inscription, DTOs, etc.)
+├── DeliveryOptimizationService.java
+├── RouteCalculationService.java
+├── LocationTrackingService.java
+├── OrderManagementService.java
+└── NotificationService.java
 ```
 
 ## 🔄 Flux d'Implémentation
 
 ### Phase 1 : Services Métier Basiques
 
-#### 1.1 AuthenticationServiceImpl
+#### 1.1 Inscription et Connexion locale (UserService)
 ```java
 @Service
+@RequiredArgsConstructor
+@Slf4j
 @Transactional
-public class AuthenticationServiceImpl implements AuthenticationService {
+public class UserService {
     
-    @Autowired
-    private UserRepository userRepository;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
     
-    @Autowired
-    private JwtTokenProvider jwtTokenProvider;
-    
-    @Override
-    public Optional<Object> validateClerkToken(String token) {
-        // 1. Valider le JWT
-        // 2. Extraire les claims
-        // 3. Charger l'utilisateur de la BD
-        return userRepository.findByClerkId(extractClerkId(token));
-    }
-    
-    @Override
-    public Object syncUserFromClerk(String clerkId, String email, String firstName, 
-                                    String lastName, String role) {
-        // 1. Chercher ou créer l'utilisateur selon le rôle
-        // 2. Mettre à jour les informations
-        // 3. Sauvegarder en BD
-        // 4. Retourner l'utilisateur
+    public User register(RegisterRequestDTO dto) {
+        if (userRepository.existsByEmail(dto.getEmail())) {
+            throw new IllegalArgumentException("Un utilisateur avec cet email existe déjà.");
+        }
+        
+        User user = new User();
+        user.setEmail(dto.getEmail());
+        user.setPassword(passwordEncoder.encode(dto.getPassword()));
+        user.setName(dto.getName());
+        user.setPhone(dto.getPhone());
+        user.setRole(dto.getRole());
+        user.setActive(true);
+        
+        return userRepository.save(user);
     }
 }
 ```
@@ -401,22 +394,21 @@ public class DeliveryOptimizationServiceTest {
 ```java
 @Configuration
 @EnableWebSecurity
-public class SecurityConfiguration {
+@RequiredArgsConstructor
+public class SecurityConfig {
+    
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
     
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
+            .csrf(csrf -> csrf.disable())
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/public/**").permitAll()
-                .requestMatchers("/api/drivers/**").hasRole("DRIVER")
-                .requestMatchers("/api/clients/**").hasRole("CLIENT")
-                .requestMatchers("/api/managers/**").hasRole("MANAGER")
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                .requestMatchers("/auth/**").permitAll()
                 .anyRequest().authenticated()
             )
-            .oauth2ResourceServer(oauth2 -> oauth2
-                .jwt(jwt -> jwt.decoder(jwtDecoder()))
-            )
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             .cors(cors -> cors.configurationSource(corsConfigurationSource()));
         
         return http.build();
@@ -426,7 +418,7 @@ public class SecurityConfiguration {
 
 ## 🗓️ Calendrier d'Implémentation Recommandé
 
-- **Semaine 1:** AuthenticationService + OrderManagementService
+- **Semaine 1:** Sécurité Spring Security + JWT local & UserService / AuthController
 - **Semaine 2:** LocationTrackingService + NotificationService
 - **Semaine 3:** DeliveryOptimizationService (OR-Tools)
 - **Semaine 4:** RouteCalculationService (Valhalla) + Mappers
