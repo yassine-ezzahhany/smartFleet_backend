@@ -39,7 +39,11 @@ public class DeliveryProgramService {
                 .orElseThrow(() -> new ResourceNotFoundException("Manager", managerId));
 
         DeliveryProgram program = new DeliveryProgram();
-        program.setProgramNumber("PRG-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+        if (dto.getProgramNumber() != null && !dto.getProgramNumber().trim().isEmpty()) {
+            program.setProgramNumber(dto.getProgramNumber());
+        } else {
+            program.setProgramNumber("PRG-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+        }
         program.setManager(manager);
         program.setStatus(DeliveryProgramStatus.PENDING);
         program.setNotes(dto.getNotes());

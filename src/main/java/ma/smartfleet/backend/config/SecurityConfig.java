@@ -45,7 +45,11 @@ public class SecurityConfig {
                     "/v3/api-docs/**",
                     "/api/v3/api-docs/**",
                     "/v3/api-docs.yaml",
-                    "/api/v3/api-docs.yaml"
+                    "/api/v3/api-docs.yaml",
+                    "/ws/**",
+                    "/api/ws/**",
+                    "/drivers/*/location",
+                    "/api/drivers/*/location"
                 ).permitAll()
                 .anyRequest().authenticated()
             )

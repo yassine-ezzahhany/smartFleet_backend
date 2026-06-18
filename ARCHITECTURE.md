@@ -2,55 +2,26 @@
 
 ## 📋 Vue d'ensemble
 
-SmartFleet est une application backend de gestion logistique utilisant une **architecture hexagonale (clean architecture)** avec Spring Boot 3, PostgreSQL et PostGIS pour optimiser les tournées de livraison.
+SmartFleet est une application backend de gestion logistique utilisant une **architecture multiniveau (N-Tier/layered architecture)** avec Spring Boot 3, PostgreSQL et PostGIS pour optimiser les tournées de livraison.
 
 ## 🏗️ Architecture du Projet
 
-### Structure des Packages (Clean Architecture)
+### Structure des Packages
 
 ```
 ma.smartfleet.backend/
-├── domain/                          # Couche métier (indépendante des frameworks)
-│   ├── model/                       # Entités du domaine
-│   │   ├── User.java               # Classe parente pour les utilisateurs
-│   │   ├── Manager.java            # Responsable de tournées
-│   │   ├── Driver.java             # Conducteur
-│   │   ├── Client.java             # Client/Expéditeur
-│   │   ├── Vehicle.java            # Véhicule de livraison
-│   │   ├── Order.java              # Commande de livraison
-│   │   ├── DeliveryProgram.java    # Programme de livraison
-│   │   ├── SubProgram.java         # Sous-programme (tournée d'un conducteur)
-│   │   └── enums/                  # Énumérations des statuts
-│   ├── service/                     # Interfaces des services métier
-│   │   ├── DeliveryOptimizationService.java
-│   │   ├── RouteCalculationService.java
-│   │   ├── NotificationService.java
-│   │   ├── LocationTrackingService.java
-│   │   ├── OrderManagementService.java
-│   │   ├── AuthenticationService.java
-│   │   └── OptimizationStats.java
-│   └── exception/                   # Exceptions personnalisées
-│
-├── application/                     # Couche application (orchestration métier)
-│   ├── service/                     # Implémentation des use cases
-│   ├── dto/                         # Data Transfer Objects pour API
-│   └── mapper/                      # Mappage entités <-> DTOs
-│
-├── infrastructure/                  # Couche infrastructure (détails techniques)
-│   ├── adapter/                     # Adaptateurs pour services externes
-│   │   ├── ORToolsAdapter.java     # Intégration Vehicle Routing Problem
-│   │   └── ValhallaAdapter.java    # Intégration calcul d'itinéraires
-│   ├── config/                      # Configuration Spring
-│   ├── persistence/                 # Repositories (accès données)
-│   └── rest/                        # Clients HTTP pour services externes
-│
-├── presentation/                    # Couche présentation (API)
-│   ├── controller/                  # Endpoints REST
-│   └── websocket/                   # Endpoints WebSocket STOMP
-│
-└── shared/                          # Utilitaires partagés
-    ├── constants/                   # Constantes applicatives
-    └── utility/                     # Fonctions utilitaires
+├── config/                         # Configuration Spring (Sécurité JWT, WebSocket, Swagger, etc.)
+├── controller/                     # Contrôleurs REST (Couche Présentation)
+├── dto/                            # Data Transfer Objects
+├── exception/                      # Gestionnaires d'exceptions personnalisées
+├── infrastructure/                 # Intégrations et Clients (OR-Tools, client Valhalla)
+│   └── adapter/
+│       └── ORToolsAdapter.java     # Adaptateur OR-Tools
+├── model/                          # Entités JPA de la Base de Données et énumérations
+│   └── enums/                      # Enums (UserRole, OrderStatus, etc.)
+├── repository/                     # Interfaces repositories JPA (Accès Données)
+├── service/                        # Logique métier (Services)
+└── util/                           # Utilitaires (Générateur JWT, etc.)
 ```
 
 ## 🗄️ Architecture de la Base de Données
@@ -84,13 +55,14 @@ ma.smartfleet.backend/
 
 ## 🔐 Intégrations Principales
 
-### 1. **Authentification (Clerk + JWT)**
+### 1. **Authentification (Base de Données locale + JWT)**
 ```
-Clerk → Génère JWT → Backend vérifie JWT → Détermine rôle
+Client (Email/Password) → Authentification /auth/login → Backend vérifie et génère JWT → Client stocke JWT
+Requête suivante → Header Authorization (Bearer <JWT>) → Spring Security valide le JWT localement → Détermine rôle
 ```
-- Spring Security OAuth2 Resource Server
-- Validation des tokens JWT
-- Synchronisation des utilisateurs Clerk → Base de données
+- Authentification locale par mot de passe encodé (BCrypt) via `/auth/login` ou `/auth/register`
+- Utilisation de `JwtTokenProvider` et `JwtAuthenticationFilter` pour valider le JWT à chaque requête
+- Gestion de la session stateless dans Spring Security
 
 ### 2. **Optimisation (OR-Tools)**
 ```
@@ -150,7 +122,7 @@ Client approuve → Mise à jour statut commande → Vérification sous-programm
 
 ### User (Classe Parente)
 ```java
-- clerkId (unique)
+- password (mot de passe encodé BCrypt)
 - email (unique)
 - firstName
 - lastName
@@ -295,7 +267,7 @@ Voir `AppConstants.java` pour:
 
 Le fichier `application.properties` contient:
 - Configuration PostgreSQL + PostGIS
-- Configuration JWT et Clerk
+- Configuration JWT (secret et durée d'expiration)
 - Configuration Valhalla
 - Configuration OR-Tools
 - Configuration Firebase
@@ -315,7 +287,7 @@ Le fichier `application.properties` contient:
 ## 🔐 Sécurité
 
 - Spring Security avec OAuth2 Resource Server
-- Validation des JWT via Clerk
+- Validation des JWT via filtre de sécurité Spring Security local
 - Rôles: ADMIN, MANAGER, DRIVER, CLIENT
 - Annotations @PreAuthorize pour autorisation
 - CORS configuré pour domaines connus
