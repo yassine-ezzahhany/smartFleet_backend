@@ -1,16 +1,37 @@
 # ====================================================
-# SmartFleet — Local Dev Services
-# La base de données est hébergée sur Supabase (cloud).
-# Ce fichier ne lance que les services locaux.
+# SmartFleet — Orchestration Docker Compose
+# Démarre l'application backend, la BDD PostGIS locale
+# et le moteur de calcul d'itinéraires Valhalla.
 # ====================================================
+
+version: '3.8'
 
 services:
 
-  # Valhalla — moteur de calcul d'itinéraires
-  # À démarrer quand vous êtes prêt à tester le routage.
+  # 1. Base de données PostgreSQL + PostGIS locale
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: smartfleet-db
+    restart: always
+    environment:
+      POSTGRES_USER: smartfleet_user
+      POSTGRES_PASSWORD: smartfleet_password
+      POSTGRES_DB: smartfleet_db_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smartfleet_user -d smartfleet_db_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 2. Valhalla — moteur de calcul d'itinéraires (Maroc)
   valhalla:
     image: ghcr.io/gis-ops/docker-valhalla/valhalla:latest
     container_name: smartfleet-valhalla
+    restart: always
     ports:
       - "8002:8002"
     volumes:
@@ -19,6 +40,7 @@ services:
       - serve_tiles=True
       - build_admins=False
       - build_time_zones=False
+      # Télécharge et compile automatiquement la carte du Maroc au premier démarrage
       - tile_urls=https://download.geofabrik.de/africa/morocco-latest.osm.pbf
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8002/status"]
@@ -26,18 +48,34 @@ services:
       timeout: 10s
       retries: 3
 
-volumes:
-  valhalla_data:
+  # 3. Application Spring Boot Backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smartfleet-backend
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      valhalla:
+        condition: service_healthy
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - DB_URL=jdbc:postgresql://db:5432/smartfleet_db_dev
+      - DB_USERNAME=smartfleet_user
+      - DB_PASSWORD=smartfleet_password
+      - VALHALLA_URL=http://valhalla:8002
+      - JWT_SECRET=smartfleetsecretkeysmartfleetsecretkeysmartfleetsecretkey
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001,http://localhost:4200
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
 
-# ──────────────────────────────────────────────────
-# Commandes utiles :
-#
-# Démarrer Valhalla :
-#   docker-compose up -d valhalla
-#
-# Vérifier que Valhalla est prêt :
-#   curl http://localhost:8002/health
-#
-# Arrêter :
-#   docker-compose down
-# ──────────────────────────────────────────────────
+volumes:
+  postgres_data:
+  valhalla_data:
